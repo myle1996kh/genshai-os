@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2, Cpu, ChevronUp } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { agents } from "@/data/agents";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -325,20 +327,81 @@ function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange
 }
 
 // ─── Message Content Renderer ─────────────────────────────────────────────────
-const renderContent = (content: string) => {
-  if (!content) return null;
-  // Support **bold** and *italic*
-  const parts = content.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i} className="text-gold font-semibold">{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith("*") && part.endsWith("*")) {
-      return <em key={i} className="text-gold not-italic font-medium">{part.slice(1, -1)}</em>;
-    }
-    return part;
-  });
-};
+function AgentMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        h1: ({ children }) => (
+          <h1 className="font-display text-xl text-cream font-semibold mt-4 mb-2 first:mt-0 border-b border-gold/20 pb-1">{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="font-display text-lg text-cream font-semibold mt-3 mb-1.5 first:mt-0">{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="font-semibold text-gold text-sm mt-2.5 mb-1 first:mt-0 tracking-wide uppercase text-xs font-mono">{children}</h3>
+        ),
+        p: ({ children }) => (
+          <p className="text-cream leading-relaxed mb-3 last:mb-0">{children}</p>
+        ),
+        strong: ({ children }) => (
+          <strong className="text-gold font-semibold">{children}</strong>
+        ),
+        em: ({ children }) => (
+          <em className="text-cream-dim not-italic border-b border-gold/30 pb-px">{children}</em>
+        ),
+        ul: ({ children }) => (
+          <ul className="my-2 space-y-1.5 pl-1">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="my-2 space-y-1.5 pl-1 list-decimal list-inside">{children}</ol>
+        ),
+        li: ({ children }) => (
+          <li className="flex gap-2 text-cream leading-relaxed text-sm">
+            <span className="text-gold mt-1.5 flex-shrink-0">▸</span>
+            <span>{children}</span>
+          </li>
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="my-3 pl-4 border-l-2 border-gold/50 bg-gold/5 rounded-r-lg py-2 pr-3 italic text-cream-dim">
+            {children}
+          </blockquote>
+        ),
+        code: ({ inline, children }: any) =>
+          inline ? (
+            <code className="bg-obsidian-light/80 text-gold px-1.5 py-0.5 rounded font-mono text-xs border border-gold/15">{children}</code>
+          ) : (
+            <pre className="my-3 p-4 bg-obsidian-light/60 rounded-xl border border-gold/10 overflow-x-auto">
+              <code className="text-cream font-mono text-xs leading-relaxed">{children}</code>
+            </pre>
+          ),
+        hr: () => <hr className="my-4 border-gold/15" />,
+        table: ({ children }) => (
+          <div className="my-3 overflow-x-auto rounded-xl border border-gold/15">
+            <table className="w-full text-sm">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="bg-gold/10 border-b border-gold/20">{children}</thead>
+        ),
+        th: ({ children }) => (
+          <th className="px-4 py-2 text-left text-gold font-mono text-xs uppercase tracking-wider">{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className="px-4 py-2.5 text-cream border-b border-gold/8 last:border-0">{children}</td>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer"
+            className="text-gold hover:text-gold-bright underline underline-offset-2 decoration-gold/40 hover:decoration-gold transition-colors">
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 // ─── Main Session ─────────────────────────────────────────────────────────────
 const Session = () => {
@@ -699,10 +762,14 @@ const Session = () => {
               )}
               <div className={`max-w-xl px-5 py-4 rounded-2xl text-sm leading-relaxed ${
                 msg.role === "agent"
-                  ? "glass border border-gold/12 text-cream"
+                  ? "glass border border-gold/12"
                   : "bg-secondary text-cream border border-border"
               }`}>
-                {msg.content ? renderContent(msg.content) : (
+                {msg.content ? (
+                  msg.role === "agent"
+                    ? <AgentMarkdown content={msg.content} />
+                    : <p className="text-cream leading-relaxed">{msg.content}</p>
+                ) : (
                   <span className="text-cream-dim/40 animate-pulse">▋</span>
                 )}
               </div>
