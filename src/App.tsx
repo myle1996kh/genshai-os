@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Index from "./pages/Index";
 import Library from "./pages/Library";
 import Session from "./pages/Session";
+import AgentProfile from "./pages/AgentProfile";
+import KnowledgeIngestion from "./pages/KnowledgeIngestion";
 import NotFound from "./pages/NotFound";
 import Navigation from "./components/Navigation";
 
@@ -21,7 +23,9 @@ const AppLayout = () => {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/library" element={<Library />} />
+        <Route path="/agent/:agentId" element={<AgentProfile />} />
         <Route path="/session/:agentId" element={<Session />} />
+        <Route path="/knowledge/:agentId" element={<KnowledgeIngestion />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

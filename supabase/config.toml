@@ -1,1 +1,10 @@
 project_id = "hzuigirxuucwtwmdvjod"
+
+[functions.agent-chat]
+verify_jwt = false
+
+[functions.ingest-knowledge]
+verify_jwt = false
+
+[functions.get-conversation]
+verify_jwt = false
