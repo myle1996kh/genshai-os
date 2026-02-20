@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           id: string
           updated_at: string
+          user_id: string | null
           user_session: string
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           created_at?: string
           id?: string
           updated_at?: string
+          user_id?: string | null
           user_session: string
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           created_at?: string
           id?: string
           updated_at?: string
+          user_id?: string | null
           user_session?: string
         }
         Relationships: []
@@ -295,7 +298,10 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          last_session_reset: string | null
           paypal_customer_id: string | null
+          session_limit_override: number | null
+          sessions_this_month: number | null
           updated_at: string
           user_id: string
         }
@@ -305,7 +311,10 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          last_session_reset?: string | null
           paypal_customer_id?: string | null
+          session_limit_override?: number | null
+          sessions_this_month?: number | null
           updated_at?: string
           user_id: string
         }
@@ -315,7 +324,10 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          last_session_reset?: string | null
           paypal_customer_id?: string | null
+          session_limit_override?: number | null
+          sessions_this_month?: number | null
           updated_at?: string
           user_id?: string
         }
