@@ -250,4 +250,14 @@
     background: hsl(var(--gold-dim));
     border-radius: 2px;
   }
+
+  /* Agent markdown list items — override bullet with gold triangle */
+  .agent-markdown li::marker {
+    display: none;
+  }
+
+  /* Table row hover */
+  .agent-markdown tbody tr:hover td {
+    background: hsl(var(--gold) / 0.04);
+  }
 }

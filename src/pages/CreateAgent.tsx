@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Brain, Heart, Cpu, Zap, MessageSquare, BookOpen, History,
   ChevronRight, ChevronLeft, Save, ArrowLeft, Eye, EyeOff, Loader2,
-  Sparkles, Wand2, X
+  Sparkles, Wand2, X, ImagePlus, RefreshCw
 } from "lucide-react";
 
 const LAYERS = [
@@ -409,6 +409,40 @@ function BasicInfoStep({ form, setField, setStarter, onNext }: {
   onNext: () => void;
 }) {
   const canNext = form.name.trim() && form.domain.trim();
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const { toast } = useToast();
+
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const generateImage = async () => {
+    if (!form.name.trim()) {
+      toast({ title: "Enter an agent name first", variant: "destructive" });
+      return;
+    }
+    setGeneratingImage(true);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-agent-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({
+          agentName: form.name,
+          domain: form.domain,
+          era: form.era,
+          tagline: form.tagline,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generation failed");
+      setField("image_url", data.imageUrl);
+      toast({ title: "Portrait generated!", description: "AI-painted portrait ready. You can regenerate or enter a URL manually." });
+    } catch (e: any) {
+      toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="glass-strong rounded-2xl border border-border/50 p-6">
@@ -431,11 +465,43 @@ function BasicInfoStep({ form, setField, setStarter, onNext }: {
             <input type="text" value={form.tagline} onChange={e => setField("tagline", e.target.value)} placeholder="One compelling sentence..."
               className="w-full glass rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 border border-border focus:border-primary/50 outline-none transition-colors" />
           </div>
-          <div className="md:col-span-2">
-            <label className="text-xs text-muted-foreground mb-1.5 block">Profile Image URL (optional)</label>
-            <input type="url" value={form.image_url} onChange={e => setField("image_url", e.target.value)} placeholder="https://..."
-              className="w-full glass rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 border border-border focus:border-primary/50 outline-none transition-colors" />
+
+          {/* Profile Image — with AI generation */}
+          <div className="md:col-span-2 space-y-3">
+            <label className="text-xs text-muted-foreground mb-1.5 block">Profile Image</label>
+            <div className="flex gap-3 items-start">
+              {/* Preview */}
+              <div className="flex-shrink-0 w-20 h-20 rounded-xl border border-border overflow-hidden bg-muted flex items-center justify-center">
+                {form.image_url ? (
+                  <img src={form.image_url} alt="Preview" className="w-full h-full object-cover object-top" />
+                ) : (
+                  <Brain className="w-7 h-7 text-muted-foreground/40" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <input type="url" value={form.image_url} onChange={e => setField("image_url", e.target.value)} placeholder="https://... (or generate below)"
+                  className="w-full glass rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 border border-border focus:border-primary/50 outline-none transition-colors" />
+                <button
+                  type="button"
+                  onClick={generateImage}
+                  disabled={generatingImage || !form.name.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/30 text-primary hover:bg-primary/10 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {generatingImage ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" />Painting portrait with AI...</>
+                  ) : form.image_url ? (
+                    <><RefreshCw className="w-3.5 h-3.5" />Regenerate Portrait</>
+                  ) : (
+                    <><ImagePlus className="w-3.5 h-3.5" />Generate AI Portrait</>
+                  )}
+                </button>
+                {generatingImage && (
+                  <p className="text-xs text-muted-foreground animate-pulse">Creating a dramatic oil-painting style portrait... ~10 seconds</p>
+                )}
+              </div>
+            </div>
           </div>
+
           <div className="flex items-center gap-3 self-end pb-1">
             <input type="checkbox" id="is_public" checked={form.is_public} onChange={e => setField("is_public", e.target.checked)} className="accent-primary w-4 h-4" />
             <label htmlFor="is_public" className="text-sm text-foreground">Publicly visible in library</label>
