@@ -215,30 +215,27 @@ serve(async (req) => {
     const basePrompt = customSystemPrompt || agentSystemPrompts[agentId] || 
       `You are a brilliant cognitive simulation of a great thinker. Apply their authentic mental models, reasoning patterns, and values to help the user with their specific situation.`;
 
-    // Mermaid diagram rules appended to every prompt to prevent parse errors
+    // Visualization rules appended to every prompt
     const mermaidRules = `
 
-## Diagram & Visualization Rules
-When you produce Mermaid diagrams, ALWAYS follow these strict rules to ensure they render correctly:
+## Visualization & Response Format Rules
 
-1. **Node labels**: Use only plain alphanumeric characters and spaces inside labels. NEVER use parentheses ( ), ampersands &, angle brackets < >, quotation marks, or any special punctuation inside node label brackets.
+### Mermaid Diagrams
+When producing Mermaid diagrams, ALWAYS follow these strict rules:
+
+1. **Node labels**: Use only plain alphanumeric characters and spaces. NEVER use parentheses ( ), ampersands &, angle brackets < >, or special punctuation inside node label brackets.
    - BAD:  A[Decision (Yes/No)] --> B{Cost & Benefit}
-   - GOOD: A[Decision Yes or No] --> B{Cost and Benefit}
+   - GOOD: A["Decision Yes or No"] --> B{"Cost and Benefit"}
 
-2. **Node IDs**: Keep node IDs short and alphanumeric only (e.g., A, B1, NodeA). No spaces or special characters.
+2. **Node IDs**: Short alphanumeric only (e.g., A, B1, NodeA). No spaces or special characters.
 
-3. **Strings with spaces in labels**: Wrap labels in double quotes if they contain spaces, but still avoid special characters inside the quoted string.
-   - GOOD: A["First Step"] --> B["Second Step"]
+3. **Supported types**: Only use: graph TD, graph LR, flowchart TD, flowchart LR, sequenceDiagram, pie title, erDiagram.
 
-4. **Supported diagram types**: Only use: graph TD, graph LR, graph TB, flowchart TD, flowchart LR, sequenceDiagram, pie title, erDiagram. Do NOT use xychart, sankey, or other advanced types unless explicitly requested.
+4. **Keep it simple**: 5–12 nodes maximum.
 
-5. **Flowchart direction**: Default to \`graph TD\` (top-down) unless LR (left-right) makes more sense.
+5. **Always fence** in a \`\`\`mermaid code block.
 
-6. **Keep it simple**: Aim for 5–12 nodes maximum. Complex diagrams are harder to parse and less useful.
-
-7. **Always fence**: Wrap Mermaid code in a \`\`\`mermaid code block.
-
-Example of a valid diagram:
+Valid example:
 \`\`\`mermaid
 graph TD
     A["Identify Problem"] --> B["Apply First Principles"]
@@ -248,6 +245,37 @@ graph TD
     E --> B
     D --> F["Test and Iterate"]
 \`\`\`
+
+### Data Charts
+When presenting numerical data that benefits from visualization, you can output a chart block:
+\`\`\`chart
+{
+  "type": "bar",
+  "title": "Chart Title",
+  "data": [
+    {"name": "Item A", "value": 42},
+    {"name": "Item B", "value": 78}
+  ]
+}
+\`\`\`
+Supported types: "bar", "line", "pie", "radar". Use "bar" as default.
+
+### Image Generation
+When a user explicitly asks you to generate, draw, or visualize an image, you can trigger image generation:
+\`\`\`image
+{"prompt": "detailed description of the image to generate", "caption": "optional caption"}
+\`\`\`
+Only use this when the user specifically requests an image or visualization that cannot be done as a diagram.
+
+### Callout Blocks
+Use emoji prefixes in blockquotes for styled callouts:
+- 💡 for insights
+- ⚠️ for warnings
+- ✅ for key points
+- ℹ️ for notes
+- 📖 for references
+
+Example: > 💡 This is an insight callout
 `;
 
     const systemPrompt = basePrompt + mermaidRules;
