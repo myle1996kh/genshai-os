@@ -293,6 +293,19 @@ Example: > 💡 This is an insight callout
       })),
     ];
 
+    // Validate model against allowed list — fall back to default if invalid
+    const ALLOWED_MODELS = [
+      "openai/gpt-5-mini", "openai/gpt-5", "openai/gpt-5-nano", "openai/gpt-5.2",
+      "google/gemini-2.5-pro", "google/gemini-2.5-flash", "google/gemini-2.5-flash-lite",
+      "google/gemini-2.5-flash-image", "google/gemini-3-pro-preview",
+      "google/gemini-3-flash-preview", "google/gemini-3-pro-image-preview",
+    ];
+    const DEFAULT_MODEL = "google/gemini-2.5-flash";
+    const resolvedModel = model && ALLOWED_MODELS.includes(model) ? model : DEFAULT_MODEL;
+    if (model && !ALLOWED_MODELS.includes(model)) {
+      console.warn(`Invalid model requested: "${model}", falling back to ${DEFAULT_MODEL}`);
+    }
+
     // Call Lovable AI Gateway
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -301,7 +314,7 @@ Example: > 💡 This is an insight callout
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: model || "google/gemini-2.5-flash",
+        model: resolvedModel,
         messages: aiMessages,
         stream: true,
       }),
