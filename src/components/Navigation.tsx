@@ -5,27 +5,14 @@ import {
   Menu, X, BookOpen, Sparkles
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 
 const Navigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user, profile, isAdmin, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    if (!user) { setIsAdmin(false); return; }
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle()
-      .then(({ data }) => setIsAdmin(!!data));
-  }, [user]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -152,9 +139,20 @@ const Navigation = () => {
                           <Plus className="w-4 h-4 text-gold" />
                           Create Agent
                         </Link>
+                        <Link
+                          to="/billing"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-cream-dim hover:text-cream hover:bg-gold/8 transition-colors"
+                        >
+                          <Sparkles className="w-4 h-4 text-gold" />
+                          Billing & Plan
+                        </Link>
                         {isAdmin && (
                           <>
                             <div className="h-px bg-gold/8 mx-2 my-1" />
+                            <div className="px-3 py-1">
+                              <span className="text-[10px] font-mono uppercase tracking-widest text-cream-dim/40">Admin</span>
+                            </div>
                             <Link
                               to="/admin"
                               onClick={() => setMenuOpen(false)}
@@ -260,6 +258,12 @@ const Navigation = () => {
                 </MobileLink>
               )}
 
+              {user && (
+                <MobileLink to="/billing" icon={<Sparkles className="w-4 h-4" />} active={isActive("/billing")} onClick={() => setMobileOpen(false)}>
+                  Billing & Plan
+                </MobileLink>
+              )}
+
               {/* Admin section */}
               {isAdmin && (
                 <>
@@ -270,7 +274,7 @@ const Navigation = () => {
                     Admin Dashboard
                   </MobileLink>
                   <MobileLink to="/ai-provider" icon={<Cpu className="w-4 h-4" />} active={isActive("/ai-provider")} onClick={() => setMobileOpen(false)}>
-                    AI Providers
+                    AI Settings
                   </MobileLink>
                 </>
               )}
