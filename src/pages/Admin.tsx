@@ -495,21 +495,6 @@ export default function Admin() {
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
-  useEffect(() => {
-    if (!loading && !user) { navigate("/login"); return; }
-    if (!user) return;
-    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
-      .then(({ data }) => {
-        if (!data) { navigate("/"); return; }
-        setIsAdmin(true);
-      });
-  }, [user, loading, navigate]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    fetchAllData();
-  }, [isAdmin]);
-
   const fetchAllData = useCallback(async () => {
     setDataLoading(true);
     try {
@@ -521,7 +506,6 @@ export default function Admin() {
         supabase.from("conversations").select("id", { count: "exact", head: true }),
         supabase.from("messages").select("id", { count: "exact", head: true }),
       ]);
-
       const profileList = (profilesRes.data || []) as UserRow[];
       setUsers(profileList);
       setPayments((paymentsRes.data || []) as PaymentRow[]);
@@ -536,7 +520,18 @@ export default function Admin() {
     } catch (e: any) {
       toast({ title: "Error loading data", description: e.message, variant: "destructive" });
     } finally { setDataLoading(false); }
-  }, []);
+  }, [toast]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) { navigate("/login"); return; }
+    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
+      .then(({ data }) => {
+        if (!data) { navigate("/"); return; }
+        setIsAdmin(true);
+        fetchAllData();
+      });
+  }, [user, loading, navigate, fetchAllData]);
 
   if (loading || isAdmin === null) {
     return (
