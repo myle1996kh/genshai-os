@@ -17,6 +17,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Pricing from "./pages/Pricing";
 import Billing from "./pages/Billing";
+import Admin from "./pages/Admin";
+import CreateAgent from "./pages/CreateAgent";
 import Navigation from "./components/Navigation";
 
 const queryClient = new QueryClient();
@@ -60,6 +62,23 @@ const AppLayout = () => {
           }
         />
         <Route path="/billing" element={<Billing />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route
+          path="/create-agent"
+          element={
+            <ProtectedRoute>
+              <CreateAgent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/edit-agent/:agentId"
+          element={
+            <ProtectedRoute>
+              <CreateAgent />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<NotFound />} />
       </Routes>

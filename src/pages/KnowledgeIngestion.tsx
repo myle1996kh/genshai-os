@@ -10,12 +10,14 @@ import {
   Loader2,
   ChevronRight,
   FileText,
+  Sparkles,
+  Search,
 } from "lucide-react";
 import { agents } from "@/data/agents";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-type SourceType = "wikipedia" | "text";
+type SourceType = "wikipedia" | "text" | "auto";
 
 const KnowledgeIngestion = () => {
   const { agentId } = useParams<{ agentId: string }>();
@@ -29,6 +31,10 @@ const KnowledgeIngestion = () => {
   const [textContent, setTextContent] = useState("");
   const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
   const [extractedData, setExtractedData] = useState<any>(null);
+  // Auto-research state
+  const [autoTopic, setAutoTopic] = useState("");
+  const [autoSources, setAutoSources] = useState<string[]>(["wikipedia"]);
+  const [autoResults, setAutoResults] = useState<any[]>([]);
 
   const handleWikipediaIngest = async () => {
     if (!wikiUrl.trim() || !agentId) return;
@@ -160,14 +166,39 @@ const KnowledgeIngestion = () => {
     }
   };
 
+  const handleAutoResearch = async () => {
+    if (!autoTopic.trim() || !agentId) return;
+    setStatus("processing");
+    setAutoResults([]);
+    try {
+      const { data, error } = await supabase.functions.invoke("auto-research", {
+        body: { agentId, topic: autoTopic, sources: autoSources },
+      });
+      if (error) throw error;
+      if (data.sourcesProcessed === 0) {
+        toast.error("No sources could be processed. Try a different topic.");
+        setStatus("idle");
+        return;
+      }
+      setAutoResults(data.results || []);
+      setStatus("success");
+      toast.success(`Researched ${data.sourcesProcessed} source(s) and extracted knowledge!`);
+    } catch (e: any) {
+      setStatus("error");
+      toast.error(e.message || "Auto-research failed");
+    }
+  };
+
   const handleSubmit = () => {
-    if (activeTab === "wikipedia") handleWikipediaIngest();
+    if (activeTab === "auto") handleAutoResearch();
+    else if (activeTab === "wikipedia") handleWikipediaIngest();
     else handleTextIngest();
   };
 
   const handleReset = () => {
     setStatus("idle");
     setExtractedData(null);
+    setAutoResults([]);
     setWikiUrl("");
     setTextTitle("");
     setTextContent("");
@@ -277,13 +308,14 @@ const KnowledgeIngestion = () => {
             {/* Tabs */}
             <div className="flex border-b border-gold/10">
               {[
+                { id: "auto" as SourceType, label: "Auto Research", icon: Sparkles },
                 { id: "wikipedia" as SourceType, label: "Wikipedia URL", icon: Globe },
                 { id: "text" as SourceType, label: "Paste Text", icon: FileText },
               ].map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
-                  className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-all duration-200 flex-1 justify-center ${
+                  className={`flex items-center gap-2 px-5 py-4 text-sm font-medium transition-all duration-200 flex-1 justify-center ${
                     activeTab === id
                       ? "text-gold border-b-2 border-gold bg-gold/5"
                       : "text-cream-dim hover:text-cream"
@@ -296,7 +328,73 @@ const KnowledgeIngestion = () => {
             </div>
 
             <div className="p-8">
-              {activeTab === "wikipedia" ? (
+              {activeTab === "auto" ? (
+                <div className="space-y-5">
+                  <div>
+                    <label className="font-mono text-gold/60 text-xs uppercase tracking-widest block mb-3">
+                      Research Topic
+                    </label>
+                    <input
+                      type="text"
+                      value={autoTopic}
+                      onChange={(e) => setAutoTopic(e.target.value)}
+                      placeholder="e.g. 'Stoicism', 'First principles thinking', 'Mindfulness meditation'"
+                      className="w-full glass rounded-xl px-4 py-3 text-cream placeholder:text-cream-dim/40 text-sm outline-none focus:border-gold/40 transition-colors duration-200 border border-gold/15"
+                    />
+                    <p className="text-cream-dim/50 text-xs mt-2">
+                      Enter any topic and we'll automatically find and ingest multiple relevant sources.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="font-mono text-gold/60 text-xs uppercase tracking-widest block mb-3">
+                      Sources to Research
+                    </label>
+                    <div className="flex gap-3">
+                      {[
+                        { id: "wikipedia", label: "Wikipedia" },
+                        { id: "books", label: "Open Library Books" },
+                      ].map(({ id, label }) => (
+                        <label key={id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={autoSources.includes(id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setAutoSources(prev => [...prev, id]);
+                              else setAutoSources(prev => prev.filter(s => s !== id));
+                            }}
+                            className="accent-gold w-4 h-4"
+                          />
+                          <span className="text-cream-dim text-sm">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {status === "success" && autoResults.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="font-mono text-gold/60 text-xs uppercase tracking-widest">
+                        {autoResults.length} sources ingested
+                      </div>
+                      {autoResults.map((r, i) => (
+                        <div key={i} className="glass rounded-xl p-4 border border-gold/15">
+                          <div className="flex items-center gap-2 mb-2">
+                            {r.source === "wikipedia" ? <Globe className="w-3.5 h-3.5 text-gold/60" /> : <BookOpen className="w-3.5 h-3.5 text-gold/60" />}
+                            <span className="text-cream text-sm font-medium">{r.title}</span>
+                            {r.author && <span className="text-cream-dim text-xs">by {r.author}</span>}
+                          </div>
+                          <p className="text-cream-dim text-xs">{r.extracted?.summary}</p>
+                          {r.extracted?.mentalModels?.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {r.extracted.mentalModels.slice(0, 3).map((m: string, j: number) => (
+                                <span key={j} className="text-xs px-2 py-0.5 rounded-full border border-gold/20 text-cream-dim bg-gold/5">{m}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : activeTab === "wikipedia" ? (
                 <div className="space-y-5">
                   <div>
                     <label className="font-mono text-gold/60 text-xs uppercase tracking-widest block mb-3">
@@ -355,26 +453,45 @@ const KnowledgeIngestion = () => {
               )}
 
               {/* Submit */}
-              <button
-                onClick={handleSubmit}
-                disabled={
-                  status === "processing" ||
-                  (activeTab === "wikipedia" ? !wikiUrl.trim() : !textTitle.trim() || !textContent.trim())
-                }
-                className="mt-6 w-full flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-gold text-obsidian font-semibold text-sm hover:opacity-90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {status === "processing" ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Extracting knowledge...
-                  </>
-                ) : (
-                  <>
-                    <ChevronRight className="w-4 h-4" />
-                    Extract & Ingest
-                  </>
-                )}
-              </button>
+              {status !== "success" && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={
+                    status === "processing" ||
+                    (activeTab === "auto"
+                      ? !autoTopic.trim() || autoSources.length === 0
+                      : activeTab === "wikipedia"
+                      ? !wikiUrl.trim()
+                      : !textTitle.trim() || !textContent.trim())
+                  }
+                  className="mt-6 w-full flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-gold text-obsidian font-semibold text-sm hover:opacity-90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {status === "processing" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {activeTab === "auto" ? "Researching sources..." : "Extracting knowledge..."}
+                    </>
+                  ) : activeTab === "auto" ? (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Auto-Research Topic
+                    </>
+                  ) : (
+                    <>
+                      <ChevronRight className="w-4 h-4" />
+                      Extract &amp; Ingest
+                    </>
+                  )}
+                </button>
+              )}
+              {status === "success" && activeTab === "auto" && (
+                <button
+                  onClick={handleReset}
+                  className="mt-6 w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gold/25 text-gold text-sm font-medium hover:bg-gold/10 transition-all duration-200"
+                >
+                  Research Another Topic
+                </button>
+              )}
             </div>
           </div>
         )}
