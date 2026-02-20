@@ -326,6 +326,90 @@ function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange
   );
 }
 
+// ─── Mermaid Diagram Renderer ─────────────────────────────────────────────────
+function MermaidDiagram({ chart }: { chart: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [rendered, setRendered] = useState(false);
+  const id = useRef(`mermaid-${Math.random().toString(36).slice(2)}`);
+
+  useEffect(() => {
+    if (!ref.current || !chart.trim()) return;
+    setError(null);
+    setRendered(false);
+
+    import("mermaid").then((mod) => {
+      const mermaid = mod.default;
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "dark",
+        themeVariables: {
+          primaryColor: "hsl(42 80% 52%)",
+          primaryTextColor: "hsl(42 30% 92%)",
+          primaryBorderColor: "hsl(42 80% 52% / 0.4)",
+          lineColor: "hsl(42 60% 45%)",
+          secondaryColor: "hsl(240 16% 12%)",
+          tertiaryColor: "hsl(240 18% 8%)",
+          background: "hsl(240 18% 5%)",
+          mainBkg: "hsl(240 16% 10%)",
+          nodeBorder: "hsl(42 80% 52% / 0.5)",
+          clusterBkg: "hsl(240 16% 8%)",
+          titleColor: "hsl(42 30% 92%)",
+          edgeLabelBackground: "hsl(240 16% 10%)",
+          fontFamily: "DM Sans, sans-serif",
+          fontSize: "13px",
+        },
+        flowchart: { curve: "basis", padding: 20 },
+        securityLevel: "loose",
+      });
+
+      mermaid.render(id.current, chart.trim()).then(({ svg }) => {
+        if (ref.current) {
+          ref.current.innerHTML = svg;
+          // Make SVG responsive
+          const svgEl = ref.current.querySelector("svg");
+          if (svgEl) {
+            svgEl.style.maxWidth = "100%";
+            svgEl.style.height = "auto";
+          }
+          setRendered(true);
+        }
+      }).catch((e) => {
+        setError("Could not render diagram. Showing source instead.");
+        console.warn("Mermaid render error:", e);
+      });
+    });
+  }, [chart]);
+
+  if (error) {
+    return (
+      <div className="my-3">
+        <div className="flex items-center gap-2 mb-2 text-xs text-cream-dim/60">
+          <span className="text-yellow-500/70">⚠</span> {error}
+        </div>
+        <pre className="p-4 bg-obsidian-light/60 rounded-xl border border-gold/10 overflow-x-auto">
+          <code className="text-cream font-mono text-xs leading-relaxed">{chart}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-4">
+      {!rendered && (
+        <div className="flex items-center gap-2 py-6 justify-center text-cream-dim/50 text-xs">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering diagram…
+        </div>
+      )}
+      <div
+        ref={ref}
+        className="mermaid-container overflow-x-auto rounded-xl bg-obsidian-light/40 border border-gold/15 p-4"
+        style={{ display: rendered ? "block" : "none" }}
+      />
+    </div>
+  );
+}
+
 // ─── Message Content Renderer ─────────────────────────────────────────────────
 function AgentMarkdown({ content }: { content: string }) {
   return (
@@ -367,14 +451,20 @@ function AgentMarkdown({ content }: { content: string }) {
             {children}
           </blockquote>
         ),
-        code: ({ inline, children }: any) =>
-          inline ? (
+        code: ({ inline, className, children }: any) => {
+          const lang = (className || "").replace("language-", "").trim();
+          const raw = String(children).replace(/\n$/, "");
+          if (!inline && (lang === "mermaid" || /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|gantt|pie|gitGraph|erDiagram|journey|mindmap|quadrantChart|xychart)/i.test(raw.trimStart()))) {
+            return <MermaidDiagram chart={raw} />;
+          }
+          return inline ? (
             <code className="bg-obsidian-light/80 text-gold px-1.5 py-0.5 rounded font-mono text-xs border border-gold/15">{children}</code>
           ) : (
             <pre className="my-3 p-4 bg-obsidian-light/60 rounded-xl border border-gold/10 overflow-x-auto">
-              <code className="text-cream font-mono text-xs leading-relaxed">{children}</code>
+              <code className="text-cream font-mono text-xs leading-relaxed">{raw}</code>
             </pre>
-          ),
+          );
+        },
         hr: () => <hr className="my-4 border-gold/15" />,
         table: ({ children }) => (
           <div className="my-3 overflow-x-auto rounded-xl border border-gold/15">
