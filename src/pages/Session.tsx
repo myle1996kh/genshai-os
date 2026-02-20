@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useParams, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Send, User, ChevronDown, Clock, Brain, LogOut, History, MessageSquare } from "lucide-react";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2 } from "lucide-react";
 import { agents } from "@/data/agents";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,8 +18,27 @@ interface SessionHistory {
   agent_id: string;
   created_at: string;
   updated_at: string;
-  lastMessage?: string;
   agentName?: string;
+  agentImage?: string;
+}
+
+interface CustomAgent {
+  id: string;
+  name: string;
+  slug: string;
+  domain: string;
+  era: string | null;
+  tagline: string | null;
+  image_url: string | null;
+  accent_color: string | null;
+  conversation_starters: string[] | null;
+  layer_core_values: string | null;
+  layer_mental_models: string | null;
+  layer_reasoning_patterns: string | null;
+  layer_emotional_stance: string | null;
+  layer_language_dna: string | null;
+  layer_decision_history: string | null;
+  layer_knowledge_base: string | null;
 }
 
 const getSessionId = () => {
@@ -35,50 +54,61 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // ─── Profile Sidebar ──────────────────────────────────────────────────────────
-function ProfileSidebar({ open, onClose, currentAgentId }: {
-  open: boolean; onClose: () => void; currentAgentId: string;
+function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
+  open: boolean;
+  onClose: () => void;
+  currentAgentId: string;
+  customAgents: CustomAgent[];
 }) {
   const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<SessionHistory[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!open || !user) return;
+    if (!open) return;
     setLoading(true);
-    // Load recent conversations
-    supabase
+
+    // Load recent conversations — by user_id if logged in, else by session
+    const query = supabase
       .from("conversations")
       .select("id, agent_id, created_at, updated_at")
       .order("updated_at", { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        if (!data) { setLoading(false); return; }
-        // Enrich with agent names
-        const enriched = data.map(conv => {
-          const staticAgent = agents.find(a => a.id === conv.agent_id);
-          return {
-            ...conv,
-            agentName: staticAgent?.name || conv.agent_id,
-          };
-        });
-        setSessions(enriched as SessionHistory[]);
-        setLoading(false);
+      .limit(20);
+
+    (user
+      ? query.eq("user_id", user.id)
+      : query.eq("user_session", getSessionId())
+    ).then(({ data }) => {
+      if (!data) { setLoading(false); return; }
+      const enriched = data.map(conv => {
+        const staticAgent = agents.find(a => a.id === conv.agent_id);
+        const customAgent = customAgents.find(a => a.slug === conv.agent_id || a.id === conv.agent_id);
+        return {
+          ...conv,
+          agentName: staticAgent?.name || customAgent?.name || conv.agent_id,
+          agentImage: staticAgent?.image || customAgent?.image_url || undefined,
+        };
       });
+      setSessions(enriched as SessionHistory[]);
+      setLoading(false);
+    });
   }, [open, user]);
 
-  const allStaticAgents = agents;
+  const allAgents = [
+    ...agents.map(a => ({ id: a.id, name: a.name, image: a.image as string | undefined, domain: a.domain, isCustom: false })),
+    ...customAgents.map(a => ({ id: a.slug, name: a.name, image: a.image_url || undefined, domain: a.domain, isCustom: true })),
+  ];
 
   if (!open) return null;
 
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm" onClick={onClose} />
-      {/* Panel */}
       <div className="fixed right-0 top-0 bottom-0 z-50 w-80 glass-strong border-l border-gold/15 flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gold/10">
-          <span className="font-display text-sm text-cream">Account</span>
+          <span className="font-display text-sm text-cream">Account & Sessions</span>
           <button onClick={onClose} className="w-7 h-7 rounded-lg glass flex items-center justify-center hover:border-gold/30 border border-transparent transition-colors">
             <ChevronDown className="w-4 h-4 text-cream-dim rotate-[-90deg]" />
           </button>
@@ -87,22 +117,39 @@ function ProfileSidebar({ open, onClose, currentAgentId }: {
         <div className="flex-1 overflow-y-auto">
           {/* Profile info */}
           <div className="px-5 py-4 border-b border-gold/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold">
-                {(profile?.full_name || user?.email || "U")[0].toUpperCase()}
+            {user ? (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center text-gold font-bold text-sm">
+                  {(profile?.full_name || user.email || "U")[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-cream text-sm font-medium truncate">{profile?.full_name || "User"}</div>
+                  <div className="text-cream-dim/60 text-xs truncate">{user.email}</div>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-cream text-sm font-medium truncate">{profile?.full_name || "Anonymous"}</div>
-                <div className="text-cream-dim/60 text-xs truncate">{user?.email}</div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-border flex items-center justify-center">
+                  <User className="w-4 h-4 text-cream-dim" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-cream text-sm">Guest</div>
+                  <button
+                    onClick={() => { onClose(); navigate("/login"); }}
+                    className="text-xs text-gold hover:underline"
+                  >
+                    Sign in to sync sessions →
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Switch Agent */}
           <div className="px-5 py-4 border-b border-gold/10">
             <div className="text-xs text-cream-dim/50 font-mono uppercase tracking-wider mb-3">Switch Agent</div>
-            <div className="space-y-1.5">
-              {allStaticAgents.map(agent => (
+            <div className="space-y-1.5 max-h-52 overflow-y-auto">
+              {allAgents.map(agent => (
                 <Link
                   key={agent.id}
                   to={`/session/${agent.id}`}
@@ -113,12 +160,19 @@ function ProfileSidebar({ open, onClose, currentAgentId }: {
                       : "hover:bg-gold/8 border border-transparent"
                   }`}
                 >
-                  <img src={agent.image} alt={agent.name} className="w-8 h-8 rounded-full object-cover object-top border border-gold/20 flex-shrink-0" />
+                  {agent.image ? (
+                    <img src={agent.image} alt={agent.name} className="w-8 h-8 rounded-full object-cover object-top border border-gold/20 flex-shrink-0" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0">
+                      <Brain className="w-3.5 h-3.5 text-gold" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="text-cream text-xs font-medium truncate">{agent.name}</div>
                     <div className="text-cream-dim/50 text-xs truncate">{agent.domain}</div>
                   </div>
                   {agent.id === currentAgentId && <div className="w-1.5 h-1.5 rounded-full bg-gold flex-shrink-0" />}
+                  {agent.isCustom && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/15 text-gold font-mono flex-shrink-0">AI</span>}
                 </Link>
               ))}
             </div>
@@ -146,12 +200,16 @@ function ProfileSidebar({ open, onClose, currentAgentId }: {
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gold/8 border border-transparent hover:border-gold/15 transition-all"
                   >
                     <div className="w-7 h-7 rounded-lg bg-gold/15 flex items-center justify-center flex-shrink-0">
-                      <Brain className="w-3.5 h-3.5 text-gold" />
+                      {session.agentImage ? (
+                        <img src={session.agentImage} alt="" className="w-7 h-7 rounded-lg object-cover object-top" />
+                      ) : (
+                        <Brain className="w-3.5 h-3.5 text-gold" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-cream text-xs font-medium truncate">{session.agentName}</div>
                       <div className="text-cream-dim/50 text-xs">
-                        {new Date(session.updated_at).toLocaleDateString("vi-VN")}
+                        {new Date(session.updated_at).toLocaleDateString()}
                       </div>
                     </div>
                     <MessageSquare className="w-3 h-3 text-cream-dim/30 flex-shrink-0" />
@@ -162,15 +220,25 @@ function ProfileSidebar({ open, onClose, currentAgentId }: {
           </div>
         </div>
 
-        {/* Sign out */}
-        <div className="px-5 py-4 border-t border-gold/10">
-          <button
-            onClick={() => { signOut(); onClose(); }}
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gold/10 space-y-2">
+          <Link
+            to="/library"
+            onClick={onClose}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl glass border border-gold/15 text-cream-dim hover:text-cream hover:border-gold/30 transition-colors text-sm"
           >
-            <LogOut className="w-4 h-4" />
-            Đăng xuất
-          </button>
+            <Brain className="w-4 h-4" />
+            Agent Library
+          </Link>
+          {user && (
+            <button
+              onClick={() => { signOut(); onClose(); }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl glass border border-gold/15 text-cream-dim hover:text-cream hover:border-destructive/40 transition-colors text-sm"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
+          )}
         </div>
       </div>
     </>
@@ -180,11 +248,17 @@ function ProfileSidebar({ open, onClose, currentAgentId }: {
 // ─── Message Content Renderer ─────────────────────────────────────────────────
 const renderContent = (content: string) => {
   if (!content) return null;
-  return content.split(/(\*[^*]+\*)/).map((part, i) =>
-    part.startsWith("*") && part.endsWith("*") ? (
-      <em key={i} className="text-gold not-italic font-medium">{part.slice(1, -1)}</em>
-    ) : part
-  );
+  // Support **bold** and *italic*
+  const parts = content.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} className="text-gold font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return <em key={i} className="text-gold not-italic font-medium">{part.slice(1, -1)}</em>;
+    }
+    return part;
+  });
 };
 
 // ─── Main Session ─────────────────────────────────────────────────────────────
@@ -193,7 +267,12 @@ const Session = () => {
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
 
-  const agent = agents.find((a) => a.id === agentId);
+  // Find in static agents first
+  const staticAgent = agents.find((a) => a.id === agentId);
+
+  const [customAgent, setCustomAgent] = useState<CustomAgent | null>(null);
+  const [customAgents, setCustomAgents] = useState<CustomAgent[]>([]);
+  const [agentLoading, setAgentLoading] = useState(!staticAgent);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -208,12 +287,69 @@ const Session = () => {
 
   const userSession = getSessionId();
 
+  // Load custom agents list for switcher
+  useEffect(() => {
+    supabase
+      .from("custom_agents")
+      .select("id, name, slug, domain, era, tagline, image_url, accent_color, conversation_starters, layer_core_values, layer_mental_models, layer_reasoning_patterns, layer_emotional_stance, layer_language_dna, layer_decision_history, layer_knowledge_base")
+      .eq("is_public", true)
+      .eq("is_active", true)
+      .then(({ data }) => {
+        if (data) setCustomAgents(data as CustomAgent[]);
+      });
+  }, []);
+
+  // If not a static agent, try to load from DB by slug or id
+  useEffect(() => {
+    if (staticAgent || !agentId) {
+      setAgentLoading(false);
+      return;
+    }
+    setAgentLoading(true);
+    // Try by slug first, then by id
+    supabase
+      .from("custom_agents")
+      .select("*")
+      .or(`slug.eq.${agentId},id.eq.${agentId}`)
+      .eq("is_active", true)
+      .limit(1)
+      .single()
+      .then(({ data, error }) => {
+        if (data && !error) {
+          setCustomAgent(data as CustomAgent);
+        }
+        setAgentLoading(false);
+      });
+  }, [agentId, staticAgent]);
+
+  // The effective agent (static or custom)
+  const agent = staticAgent ? {
+    id: staticAgent.id,
+    name: staticAgent.name,
+    era: staticAgent.era,
+    domain: staticAgent.domain,
+    tagline: staticAgent.tagline,
+    image: staticAgent.image as string,
+    conversationStarters: staticAgent.conversationStarters,
+    isCustom: false,
+  } : customAgent ? {
+    id: customAgent.slug,
+    name: customAgent.name,
+    era: customAgent.era || "",
+    domain: customAgent.domain,
+    tagline: customAgent.tagline || "",
+    image: customAgent.image_url || "",
+    conversationStarters: customAgent.conversation_starters || [],
+    isCustom: true,
+  } : null;
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isStreaming]);
 
+  // Load conversation history
   useEffect(() => {
-    if (!agentId || !agent) return;
+    if (!agentId || agentLoading) return;
     const loadHistory = async () => {
       try {
         const res = await fetch(
@@ -223,12 +359,16 @@ const Session = () => {
         const data = await res.json();
         if (data.conversationId) setConversationId(data.conversationId);
 
+        const hasHistory = (data.messages || []).length > 0;
+        const agentName = agent?.name || "the agent";
         const opener: Message = {
           id: "opener",
           role: "agent",
-          content: data.messages?.length > 0
+          content: hasHistory
             ? `Welcome back. I remember our conversation. Shall we continue where we left off, or is there something new on your mind?`
-            : `I am here. Not as a ghost or a recording — as a living cognitive process built from everything I believed, wrote, decided, and experienced. You have something on your mind. Let us begin.`,
+            : agent
+              ? `I am here. Not as a ghost or a recording — as a living cognitive process built from everything I believed, wrote, decided, and experienced. You have something on your mind. Let us begin.`
+              : `Hello. I'm ready to engage. What's on your mind?`,
           timestamp: new Date(),
         };
 
@@ -244,7 +384,7 @@ const Session = () => {
         setMessages([{
           id: "opener",
           role: "agent",
-          content: `I am here. Not as a ghost or a recording — as a living cognitive process built from everything I believed, wrote, decided, and experienced. You have something on your mind. Let us begin.`,
+          content: `I am here. Let us begin.`,
           timestamp: new Date(),
         }]);
       } finally {
@@ -252,7 +392,7 @@ const Session = () => {
       }
     };
     loadHistory();
-  }, [agentId, agent]);
+  }, [agentId, agentLoading]);
 
   useEffect(() => {
     const starter = searchParams.get("starter");
@@ -281,14 +421,22 @@ const Session = () => {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/agent-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ agentId, messages: [{ role: "user", content: userContent }], conversationId, userSession }),
+        body: JSON.stringify({
+          agentId,
+          messages: [{ role: "user", content: userContent }],
+          conversationId,
+          userSession,
+          userId: user?.id || null,
+          // Pass custom agent's cognitive layers if available
+          customSystemPrompt: customAgent ? buildCustomSystemPrompt(customAgent) : undefined,
+        }),
         signal: ctrl.signal,
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: "Unknown error" }));
         if (res.status === 429) toast.error("Rate limit reached. Please wait a moment.");
-        else if (res.status === 402) toast.error("AI credits exhausted. Add credits in settings.");
+        else if (res.status === 402) toast.error("AI credits exhausted.");
         else toast.error(errData.error || "Failed to reach the agent.");
         setMessages(prev => prev.filter(m => m.id !== agentMsgId));
         setIsStreaming(false);
@@ -336,7 +484,7 @@ const Session = () => {
     } finally {
       setIsStreaming(false);
     }
-  }, [input, agentId, isStreaming, conversationId, userSession]);
+  }, [input, agentId, isStreaming, conversationId, userSession, user, customAgent]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -344,12 +492,27 @@ const Session = () => {
 
   const handleStarterClick = (starter: string) => { setInput(starter); inputRef.current?.focus(); };
 
+  // Loading state while fetching custom agent
+  if (agentLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-gold animate-spin mx-auto mb-3" />
+          <p className="text-cream-dim text-sm">Loading agent...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Agent not found
   if (!agent) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-cream-dim text-lg mb-4">Agent not found.</p>
-          <Link to="/library" className="text-gold hover:underline">Return to Library</Link>
+          <Brain className="w-12 h-12 text-cream-dim/30 mx-auto mb-4" />
+          <p className="text-cream-dim text-lg mb-2">Agent not found.</p>
+          <p className="text-cream-dim/50 text-sm mb-6">This agent may not exist or is not yet public.</p>
+          <Link to="/library" className="text-gold hover:underline text-sm">← Return to Library</Link>
         </div>
       </div>
     );
@@ -360,7 +523,12 @@ const Session = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Profile Sidebar */}
-      <ProfileSidebar open={profileOpen} onClose={() => setProfileOpen(false)} currentAgentId={agentId!} />
+      <ProfileSidebar
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        currentAgentId={agentId!}
+        customAgents={customAgents}
+      />
 
       {/* Session header */}
       <div className="glass-strong border-b border-gold/10 px-6 py-4 flex items-center gap-4">
@@ -370,48 +538,52 @@ const Session = () => {
           Profile
         </Link>
         <div className="w-px h-5 bg-border" />
-        <div className="flex items-center gap-3 flex-1">
-          <div className="relative">
-            <img src={agent.image} alt={agent.name}
-              className="w-9 h-9 rounded-full object-cover object-top border border-gold/30" />
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="relative flex-shrink-0">
+            {agent.image ? (
+              <img src={agent.image} alt={agent.name}
+                className="w-9 h-9 rounded-full object-cover object-top border border-gold/30" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-gold/20 flex items-center justify-center border border-gold/30">
+                <Brain className="w-4 h-4 text-gold" />
+              </div>
+            )}
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-background flex items-center justify-center">
               <div className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
             </div>
           </div>
-          <div>
-            <div className="text-cream text-sm font-medium leading-tight">{agent.name}</div>
-            <div className="text-cream-dim text-xs">{agent.domain}</div>
+          <div className="min-w-0">
+            <div className="text-cream text-sm font-medium leading-tight truncate">{agent.name}</div>
+            <div className="text-cream-dim text-xs truncate">{agent.domain}</div>
           </div>
         </div>
         {conversationId && (
-          <div className="hidden md:flex items-center gap-1.5">
+          <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-gold/60" />
             <span className="font-mono text-cream-dim/50 text-xs">Memory active</span>
           </div>
         )}
-        <div className="os-tag hidden md:block">Cognitive Session</div>
+        <div className="os-tag hidden md:block flex-shrink-0">Cognitive Session</div>
 
-        {/* User avatar button */}
-        {user && (
-          <button
-            onClick={() => setProfileOpen(true)}
-            className="flex items-center gap-2 ml-2 px-2.5 py-1.5 rounded-xl glass border border-gold/15 hover:border-gold/35 transition-colors"
-          >
-            <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-gold text-xs font-bold">
-              {(profile?.full_name || user.email || "U")[0].toUpperCase()}
-            </div>
-            <span className="text-cream-dim text-xs hidden md:block max-w-[80px] truncate">
-              {profile?.full_name || user.email?.split("@")[0]}
-            </span>
-          </button>
-        )}
+        {/* Profile button — always shown */}
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="flex items-center gap-2 ml-2 px-2.5 py-1.5 rounded-xl glass border border-gold/15 hover:border-gold/35 transition-colors flex-shrink-0"
+        >
+          <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center text-gold text-xs font-bold">
+            {user ? (profile?.full_name || user.email || "U")[0].toUpperCase() : "G"}
+          </div>
+          <span className="text-cream-dim text-xs hidden md:block max-w-[80px] truncate">
+            {user ? (profile?.full_name || user.email?.split("@")[0]) : "Guest"}
+          </span>
+        </button>
       </div>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
           {/* Conversation starters */}
-          {userMessages.length === 0 && historyLoaded && (
+          {userMessages.length === 0 && historyLoaded && agent.conversationStarters.length > 0 && (
             <div className="space-y-3">
               <p className="text-cream-dim text-xs font-mono uppercase tracking-widest text-center">
                 — Or begin with one of these —
@@ -431,8 +603,14 @@ const Session = () => {
             <div key={msg.id} className={`flex gap-4 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
               {msg.role === "agent" ? (
                 <div className="flex-shrink-0">
-                  <img src={agent.image} alt={agent.name}
-                    className="w-9 h-9 rounded-full object-cover object-top border border-gold/30" />
+                  {agent.image ? (
+                    <img src={agent.image} alt={agent.name}
+                      className="w-9 h-9 rounded-full object-cover object-top border border-gold/30" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-gold/20 flex items-center justify-center border border-gold/30">
+                      <Brain className="w-4 h-4 text-gold" />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex-shrink-0 w-9 h-9 rounded-full bg-muted flex items-center justify-center border border-border">
@@ -453,8 +631,14 @@ const Session = () => {
 
           {isStreaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex gap-4">
-              <img src={agent.image} alt={agent.name}
-                className="w-9 h-9 rounded-full object-cover object-top border border-gold/30 flex-shrink-0" />
+              {agent.image ? (
+                <img src={agent.image} alt={agent.name}
+                  className="w-9 h-9 rounded-full object-cover object-top border border-gold/30 flex-shrink-0" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-gold/20 flex items-center justify-center border border-gold/30 flex-shrink-0">
+                  <Brain className="w-4 h-4 text-gold" />
+                </div>
+              )}
               <div className="glass border border-gold/12 px-5 py-4 rounded-2xl flex items-center gap-1.5">
                 {[0, 1, 2].map(i => (
                   <div key={i} className="w-2 h-2 rounded-full bg-gold animate-bounce"
@@ -495,5 +679,24 @@ const Session = () => {
     </div>
   );
 };
+
+// Build system prompt for custom agents from their 7 layers
+function buildCustomSystemPrompt(agent: CustomAgent): string {
+  const sections = [
+    agent.layer_core_values && `CORE VALUES:\n${agent.layer_core_values}`,
+    agent.layer_mental_models && `MENTAL MODELS:\n${agent.layer_mental_models}`,
+    agent.layer_reasoning_patterns && `REASONING PATTERNS:\n${agent.layer_reasoning_patterns}`,
+    agent.layer_emotional_stance && `EMOTIONAL STANCE:\n${agent.layer_emotional_stance}`,
+    agent.layer_language_dna && `LANGUAGE DNA:\n${agent.layer_language_dna}`,
+    agent.layer_decision_history && `DECISION HISTORY:\n${agent.layer_decision_history}`,
+    agent.layer_knowledge_base && `KNOWLEDGE BASE:\n${agent.layer_knowledge_base}`,
+  ].filter(Boolean).join("\n\n");
+
+  return `You are ${agent.name}${agent.era ? ` (${agent.era})` : ""} — a living cognitive simulation built from authentic documented sources.
+
+${sections || "Engage authentically and helpfully as this person would."}
+
+Respond in first person, embodying this person's authentic voice, values, and reasoning patterns. Draw on their documented decisions, writings, and philosophy.`;
+}
 
 export default Session;

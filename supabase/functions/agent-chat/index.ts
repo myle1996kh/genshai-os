@@ -181,7 +181,7 @@ serve(async (req) => {
   }
 
   try {
-    const { agentId, messages, conversationId, userSession } = await req.json();
+    const { agentId, messages, conversationId, userSession, userId, customSystemPrompt } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -196,7 +196,7 @@ serve(async (req) => {
     if (!convId) {
       const { data: conv, error } = await supabase
         .from("conversations")
-        .insert({ agent_id: agentId, user_session: userSession })
+        .insert({ agent_id: agentId, user_session: userSession, user_id: userId || null })
         .select("id")
         .single();
       if (error) throw error;
@@ -211,8 +211,9 @@ serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(30);
 
-    const systemPrompt = agentSystemPrompts[agentId] || 
-      `You are a brilliant cognitive simulation of a great historical thinker. Apply their authentic mental models, reasoning patterns, and values to help the user with their specific situation.`;
+    // Use custom system prompt for custom agents, fallback to static prompts
+    const systemPrompt = customSystemPrompt || agentSystemPrompts[agentId] || 
+      `You are a brilliant cognitive simulation of a great thinker. Apply their authentic mental models, reasoning patterns, and values to help the user with their specific situation.`;
 
     // Build message history for AI
     const aiMessages = [
