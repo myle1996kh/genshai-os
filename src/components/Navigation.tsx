@@ -1,12 +1,15 @@
 import { Link, useLocation } from "react-router-dom";
-import { Brain } from "lucide-react";
+import { Brain, Crown, User, LogIn } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { SubscriptionBadge } from "@/components/SubscriptionBadge";
 
 const Navigation = () => {
   const location = useLocation();
+  const { user, isPro } = useAuth();
 
   const links = [
     { to: "/library", label: "Agent Library" },
-    { to: "/about", label: "How It Works" },
+    { to: "/pricing", label: "Pricing" },
   ];
 
   return (
@@ -40,13 +43,37 @@ const Navigation = () => {
           ))}
         </div>
 
-        {/* CTA */}
-        <Link
-          to="/library"
-          className="hidden md:flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg gradient-gold text-obsidian hover:opacity-90 transition-opacity duration-200"
-        >
-          Explore Agents
-        </Link>
+        {/* Auth / CTA */}
+        <div className="hidden md:flex items-center gap-3">
+          {user ? (
+            <>
+              {isPro() && <SubscriptionBadge />}
+              <Link
+                to="/billing"
+                className="flex items-center gap-1.5 text-sm font-medium text-cream-dim hover:text-cream transition-colors"
+              >
+                <User className="w-4 h-4" />
+                Tài khoản
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="flex items-center gap-1.5 text-sm font-medium text-cream-dim hover:text-cream transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                Đăng nhập
+              </Link>
+              <Link
+                to="/signup"
+                className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg gradient-gold text-obsidian hover:opacity-90 transition-opacity duration-200"
+              >
+                Bắt đầu miễn phí
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </nav>
   );

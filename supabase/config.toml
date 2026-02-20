@@ -8,3 +8,16 @@ verify_jwt = false
 
 [functions.get-conversation]
 verify_jwt = false
+
+[functions.create-paypal-subscription]
+verify_jwt = false
+
+[functions.create-paypal-portal]
+verify_jwt = false
+
+[functions.cancel-paypal-subscription]
+verify_jwt = false
+
+[functions.paypal-webhook]
+verify_jwt = false
+
