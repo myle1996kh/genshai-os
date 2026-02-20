@@ -4,12 +4,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import Navigation from "@/components/Navigation";
 import { useToast } from "@/hooks/use-toast";
+import AgentAvatar from "@/components/AgentAvatar";
+import ThemeSettings from "@/components/ThemeSettings";
+import { agents as staticAgents } from "@/data/agents";
 import {
-  Users, CreditCard, TrendingUp, DollarSign,
-  Shield, BarChart3, Clock, CheckCircle2,
+  Users, CreditCard, Shield, BarChart3, Clock, CheckCircle2,
   Edit2, Save, X, Package,
-  RefreshCw, Crown, Brain, Sparkles, Search,
-  Bot, Trash2, Globe, Lock, ChevronRight, Zap, BookOpen, Cpu
+  RefreshCw, Brain, Sparkles, Search,
+  Bot, Globe, Lock, ChevronRight, Zap, Cpu, Image, Settings
 } from "lucide-react";
 
 interface UserRow {
@@ -387,96 +389,201 @@ function UsersTab({ users, onUpdate }: { users: UserRow[]; onUpdate: () => void 
   );
 }
 
-// ─── Agents Tab ───────────────────────────────────────────────────────────────
-function AgentsTab({ agents, onUpdate }: { agents: AgentRow[]; onUpdate: () => void }) {
+// ─── All Agents Tab (static + custom) ────────────────────────────────────────
+interface CustomAgentFull extends AgentRow {
+  image_url?: string | null;
+  accent_color?: string | null;
+  tagline?: string | null;
+  era?: string | null;
+}
+
+function AllAgentsTab({ customAgents, onUpdate }: { customAgents: CustomAgentFull[]; onUpdate: () => void }) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
-  const togglePublic = async (agent: AgentRow) => {
+  const generateAvatar = async (agent: { id: string; name: string; domain: string; era?: string | null; tagline?: string | null; isCustom: boolean }) => {
+    setGeneratingId(agent.id);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-agent-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({
+          agentName: agent.name,
+          domain: agent.domain,
+          era: agent.era,
+          tagline: agent.tagline,
+          agentId: agent.isCustom ? agent.id : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generation failed");
+      toast({ title: "Avatar generated!", description: `Portrait created for ${agent.name}` });
+      if (agent.isCustom) onUpdate();
+    } catch (e: any) {
+      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    } finally {
+      setGeneratingId(null);
+    }
+  };
+
+  const togglePublic = async (agent: CustomAgentFull) => {
     const { error } = await supabase.from("custom_agents").update({ is_public: !agent.is_public }).eq("id", agent.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { toast({ title: "Updated" }); onUpdate(); }
   };
 
-  const toggleActive = async (agent: AgentRow) => {
-    const { error } = await supabase.from("custom_agents").update({ is_active: !agent.is_active }).eq("id", agent.id);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: "Updated" }); onUpdate(); }
-  };
-
-  const runAutoResearch = async (agent: AgentRow) => {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-research`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
-        body: JSON.stringify({ agentId: agent.slug, topic: agent.name, sources: ["wikipedia", "books"] }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast({ title: "Research done", description: `${data.sourcesProcessed} sources for ${agent.name}` });
-    } catch (e: any) {
-      toast({ title: "Research failed", description: e.message, variant: "destructive" });
-    }
-  };
+  // Merge static + custom agents
+  const allAgents = [
+    ...staticAgents.map(a => ({
+      id: a.id,
+      name: a.name,
+      domain: a.domain,
+      era: a.era,
+      tagline: a.tagline,
+      imageUrl: a.image as unknown as string,
+      accentColor: a.accentColor,
+      isStatic: true,
+      isPublic: true,
+      isActive: true,
+      slug: a.id,
+    })),
+    ...customAgents.map(a => ({
+      id: a.id,
+      name: a.name,
+      domain: a.domain,
+      era: a.era,
+      tagline: a.tagline,
+      imageUrl: a.image_url,
+      accentColor: a.accent_color,
+      isStatic: false,
+      isPublic: a.is_public,
+      isActive: a.is_active,
+      slug: a.slug,
+    })),
+  ].filter(a =>
+    !search ||
+    a.name.toLowerCase().includes(search.toLowerCase()) ||
+    a.domain.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="glass-strong rounded-2xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border/50">
-            {["Agent", "Domain", "Status", "Created", "Actions"].map(h => (
-              <th key={h} className="text-left px-4 py-3 text-xs text-muted-foreground uppercase tracking-wider font-medium">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {agents.length === 0 ? (
-            <tr><td colSpan={5} className="text-center py-12 text-muted-foreground">No custom agents yet</td></tr>
-          ) : agents.map(a => (
-            <tr key={a.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-primary" />
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search agents..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full glass rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground border border-border focus:border-primary/50 outline-none"
+          />
+        </div>
+        <span className="text-xs text-muted-foreground">{allAgents.length} agents total</span>
+        <button
+          onClick={() => navigate("/create-agent")}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm ml-auto"
+        >
+          <Bot className="w-4 h-4" /> New Agent
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {allAgents.map(agent => {
+          const isGenerating = generatingId === agent.id;
+          const hasMissingAvatar = !agent.imageUrl || agent.imageUrl === "/placeholder.svg";
+          return (
+            <div
+              key={agent.id}
+              className="glass-strong rounded-2xl border border-border/50 p-4 flex items-start gap-4 hover:border-primary/20 transition-all"
+            >
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                <div className="w-16 h-16 rounded-xl overflow-hidden">
+                  <AgentAvatar
+                    name={agent.name}
+                    imageUrl={agent.imageUrl}
+                    accentColor={agent.accentColor ?? undefined}
+                    size="xl"
+                  />
+                </div>
+                {hasMissingAvatar && (
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-destructive/80 border border-background flex items-center justify-center">
+                    <Image className="w-3 h-3 text-white" />
                   </div>
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-1">
                   <div>
-                    <div className="text-foreground font-medium">{a.name}</div>
-                    <div className="text-muted-foreground text-xs font-mono">{a.slug}</div>
+                    <div className="font-semibold text-foreground text-sm truncate">{agent.name}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{agent.domain}</div>
+                  </div>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    {agent.isStatic ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-mono">BUILT-IN</span>
+                    ) : (
+                      <>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${agent.isActive ? "bg-green-500/15 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                          {agent.isActive ? "Active" : "Inactive"}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${agent.isPublic ? "bg-blue-400/15 text-blue-400" : "bg-muted text-muted-foreground"}`}>
+                          {agent.isPublic ? "Public" : "Private"}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
-              </td>
-              <td className="px-4 py-3 text-muted-foreground text-xs">{a.domain}</td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${a.is_active ? "bg-green-500/15 text-green-400" : "bg-muted text-muted-foreground"}`}>
-                    {a.is_active ? "Active" : "Inactive"}
-                  </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${a.is_public ? "bg-blue-500/15 text-blue-400" : "bg-muted text-muted-foreground"}`}>
-                    {a.is_public ? "Public" : "Private"}
-                  </span>
+                {agent.era && <div className="text-[11px] text-muted-foreground mb-2">{agent.era}</div>}
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 flex-wrap mt-2">
+                  {/* Generate avatar button — always show for static missing, show for custom missing */}
+                  {hasMissingAvatar && (
+                    <button
+                      onClick={() => generateAvatar({ ...agent, isCustom: !agent.isStatic })}
+                      disabled={isGenerating}
+                      className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-50"
+                    >
+                      {isGenerating ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Image className="w-3 h-3" />}
+                      {isGenerating ? "Generating…" : "Gen Avatar"}
+                    </button>
+                  )}
+                  {!agent.isStatic && (
+                    <>
+                      <button
+                        onClick={() => navigate(`/edit-agent/${agent.id}`)}
+                        className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+                      >
+                        <Edit2 className="w-3 h-3" /> Edit
+                      </button>
+                      <button
+                        onClick={() => togglePublic(agent as unknown as CustomAgentFull)}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        {agent.isPublic ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                        {agent.isPublic ? "Hide" : "Publish"}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => navigate(`/agent/${agent.slug}`)}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronRight className="w-3 h-3" /> View
+                  </button>
                 </div>
-              </td>
-              <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(a.created_at).toLocaleDateString("vi-VN")}</td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => navigate(`/edit-agent/${a.id}`)} className="text-xs text-primary hover:underline flex items-center gap-1">
-                    <Edit2 className="w-3 h-3" /> Edit
-                  </button>
-                  <button onClick={() => togglePublic(a)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                    {a.is_public ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
-                    {a.is_public ? "Hide" : "Publish"}
-                  </button>
-                  <button onClick={() => runAutoResearch(a)} className="text-xs text-accent hover:underline flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> Research
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -487,7 +594,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "agents" | "research" | "payments" | "plans">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "agents" | "research" | "payments" | "plans" | "theme">("overview");
   const [stats, setStats] = useState<Stats | null>(null);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
@@ -548,6 +655,7 @@ export default function Admin() {
     { id: "research" as const, label: "Auto-Research", icon: Sparkles },
     { id: "payments" as const, label: "Payments", icon: CreditCard },
     { id: "plans" as const, label: "Plans", icon: Package },
+    { id: "theme" as const, label: "Theme", icon: Settings },
   ];
 
   const handleNavigateToProvider = () => navigate("/ai-provider");
@@ -640,17 +748,11 @@ export default function Admin() {
           {/* AGENTS */}
           {activeTab === "agents" && !dataLoading && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="font-semibold text-foreground">Custom Agents</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">Manage all user-created cognitive agents</p>
-                </div>
-                <button onClick={() => navigate("/create-agent")}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-gold text-obsidian font-semibold text-sm">
-                  <Bot className="w-4 h-4" /> New Agent
-                </button>
+              <div>
+                <h2 className="font-semibold text-foreground">All Agents</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Built-in agents + all user-created agents — generate avatars for those missing portraits</p>
               </div>
-              <AgentsTab agents={agents} onUpdate={fetchAllData} />
+              <AllAgentsTab customAgents={agents as unknown as CustomAgentFull[]} onUpdate={fetchAllData} />
             </div>
           )}
 
@@ -721,6 +823,17 @@ export default function Admin() {
               ) : (
                 <div className="space-y-4">{plans.map(plan => <PlanEditor key={plan.id} plan={plan} onSave={fetchAllData} />)}</div>
               )}
+            </div>
+          )}
+
+          {/* THEME */}
+          {activeTab === "theme" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="font-semibold text-foreground">Theme Settings</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Customize the platform appearance — changes apply instantly and persist in your browser</p>
+              </div>
+              <ThemeSettings />
             </div>
           )}
         </div>
