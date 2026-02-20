@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Brain, Cpu, MessageSquare, Zap } from "lucide-react";
+import AgentAvatar from "@/components/AgentAvatar";
 
 
 export interface Agent {
@@ -36,11 +37,26 @@ const AgentCard = ({ agent, featured = false }: AgentCardProps) => {
 
       {/* Agent image */}
       <div className={`relative overflow-hidden ${featured ? "h-72" : "h-52"}`}>
-        <img
-          src={agent.image}
-          alt={agent.name}
-          className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
-        />
+        {agent.image && agent.image !== "/placeholder.svg" ? (
+          <img
+            src={agent.image}
+            alt={agent.name}
+            className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+          />
+        ) : (
+          /* Gradient placeholder with initials */
+          <div
+            className="w-full h-full flex items-end transition-transform duration-700 group-hover:scale-105"
+            style={{
+              background: `linear-gradient(160deg, hsl(${(agent.accentColor || "42 80% 52%").split(" ")[0]} 30% 8%) 0%, hsl(${(agent.accentColor || "42 80% 52%").split(" ")[0]} 55% 22%) 100%)`,
+            }}
+          >
+            <span className="absolute inset-0 flex items-center justify-center text-white/10 font-display font-bold select-none"
+              style={{ fontSize: featured ? "8rem" : "6rem" }}>
+              {agent.name.split(" ").map(w => w[0]).join("").slice(0, 2)}
+            </span>
+          </div>
+        )}
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-obsidian-light via-obsidian-light/60 to-transparent" />
 

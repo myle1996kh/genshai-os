@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2, Cpu, ChevronUp } from "lucide-react";
 import { agents } from "@/data/agents";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -245,6 +245,85 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
   );
 }
 
+// ─── Model Switcher ───────────────────────────────────────────────────────────
+interface ModelOption { id: string; label: string; providerId?: string; }
+
+function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange: (m: ModelOption) => void }) {
+  const [open, setOpen] = useState(false);
+  const [models, setModels] = useState<ModelOption[]>([]);
+
+  useEffect(() => {
+    // Built-in Lovable AI models
+    const builtIn: ModelOption[] = [
+      { id: "google/gemini-2.5-flash",       label: "Gemini 2.5 Flash (default)" },
+      { id: "google/gemini-3-flash-preview",  label: "Gemini 3 Flash Preview" },
+      { id: "google/gemini-2.5-pro",          label: "Gemini 2.5 Pro" },
+      { id: "openai/gpt-5-mini",              label: "GPT-5 Mini" },
+      { id: "openai/gpt-5",                   label: "GPT-5" },
+    ];
+
+    // Fetch provider models
+    supabase
+      .from("ai_provider_models")
+      .select("model_id, model_name, provider_id, ai_providers!inner(name, is_active, is_verified)")
+      .eq("is_active", true)
+      .then(({ data }) => {
+        const providerModels: ModelOption[] = (data || [])
+          .filter((m: any) => m.ai_providers?.is_active && m.ai_providers?.is_verified)
+          .map((m: any) => ({
+            id: m.model_id,
+            label: `${m.model_name} (${m.ai_providers.name})`,
+            providerId: m.provider_id,
+          }));
+        setModels([...builtIn, ...providerModels]);
+      });
+  }, []);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass border border-gold/15 hover:border-gold/35 transition-colors flex-shrink-0 max-w-[160px]"
+        title="Switch model"
+      >
+        <Cpu className="w-3.5 h-3.5 text-gold/70 flex-shrink-0" />
+        <span className="text-cream-dim text-xs truncate">{selected.label.split(" (")[0]}</span>
+        <ChevronDown className="w-3 h-3 text-cream-dim/50 flex-shrink-0" />
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+      <div className="relative z-40">
+        <button
+          onClick={() => setOpen(false)}
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass border border-gold/35 transition-colors flex-shrink-0 max-w-[160px]"
+        >
+          <Cpu className="w-3.5 h-3.5 text-gold flex-shrink-0" />
+          <span className="text-cream text-xs truncate">{selected.label.split(" (")[0]}</span>
+          <ChevronUp className="w-3 h-3 text-gold/70 flex-shrink-0" />
+        </button>
+        <div className="absolute top-full mt-1 right-0 w-64 glass-strong rounded-xl border border-gold/20 shadow-xl overflow-hidden">
+          <div className="px-3 py-2 border-b border-gold/10">
+            <span className="font-mono text-gold/60 text-xs uppercase tracking-widest">Select Model</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {models.map(m => (
+              <button key={m.id} onClick={() => { onChange(m); setOpen(false); }}
+                className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gold/8 transition-colors ${selected.id === m.id ? "bg-gold/10" : ""}`}>
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${selected.id === m.id ? "bg-gold" : "bg-transparent border border-gold/30"}`} />
+                <span className="text-cream text-xs flex-1 truncate">{m.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Message Content Renderer ─────────────────────────────────────────────────
 const renderContent = (content: string) => {
   if (!content) return null;
@@ -280,6 +359,10 @@ const Session = () => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelOption>({
+    id: "google/gemini-2.5-flash",
+    label: "Gemini 2.5 Flash (default)",
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -306,12 +389,9 @@ const Session = () => {
       return;
     }
     setAgentLoading(true);
-    supabase
-      .from("custom_agents")
-      .select("*")
-      .or(`slug.eq.${agentId},id.eq.${agentId}`)
-      .eq("is_active", true)
-      .limit(1)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId);
+    const q = supabase.from("custom_agents").select("*").eq("is_active", true).limit(1);
+    (isUUID ? q.or(`slug.eq.${agentId},id.eq.${agentId}`) : q.eq("slug", agentId))
       .maybeSingle()
       .then(({ data }) => {
         if (data) setCustomAgent(data as CustomAgent);
@@ -424,6 +504,7 @@ const Session = () => {
           conversationId,
           userSession,
           userId: user?.id || null,
+          model: selectedModel.id,
           // Pass custom agent's cognitive layers if available
           customSystemPrompt: customAgent ? buildCustomSystemPrompt(customAgent) : undefined,
         }),
@@ -562,7 +643,9 @@ const Session = () => {
         )}
         <div className="os-tag hidden md:block flex-shrink-0">Cognitive Session</div>
 
-        {/* Profile button — always shown */}
+        {/* Model Switcher */}
+        <ModelSwitcher selected={selectedModel} onChange={setSelectedModel} />
+
         <button
           onClick={() => setProfileOpen(true)}
           className="flex items-center gap-2 ml-2 px-2.5 py-1.5 rounded-xl glass border border-gold/15 hover:border-gold/35 transition-colors flex-shrink-0"

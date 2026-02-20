@@ -181,7 +181,7 @@ serve(async (req) => {
   }
 
   try {
-    const { agentId, messages, conversationId, userSession, userId, customSystemPrompt } = await req.json();
+    const { agentId, messages, conversationId, userSession, userId, customSystemPrompt, model } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -236,7 +236,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: model || "google/gemini-2.5-flash",
         messages: aiMessages,
         stream: true,
       }),

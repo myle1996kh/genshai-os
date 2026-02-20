@@ -57,7 +57,7 @@ const AppLayout = () => {
         <Route
           path="/knowledge/:agentId"
           element={
-            <ProtectedRoute requirePro>
+            <ProtectedRoute>
               <KnowledgeIngestion />
             </ProtectedRoute>
           }
