@@ -64,7 +64,7 @@ const Library = () => {
 
     // Load user's own agents if logged in
     if (user) {
-      supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").single()
+      supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
         .then(({ data }) => {
           if (data) {
             setIsAdmin(true);
@@ -72,7 +72,7 @@ const Library = () => {
             supabase.from("custom_agents").select("*").eq("is_active", true)
               .then(({ data: allData }) => setCustomAgents((allData || []) as CustomAgent[]));
           } else {
-            // Pro users see their own + public
+            // Regular users see their own + public
             supabase.from("custom_agents").select("*").eq("is_active", true)
               .or(`is_public.eq.true,created_by.eq.${user.id}`)
               .then(({ data: ownData }) => setCustomAgents((ownData || []) as CustomAgent[]));

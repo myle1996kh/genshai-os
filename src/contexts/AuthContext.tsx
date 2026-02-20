@@ -25,6 +25,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   subscription: Subscription | null;
+  isAdmin: boolean;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -49,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
@@ -56,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
     if (data) setProfile(data as Profile);
   };
 
@@ -67,8 +69,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
-    if (data) setSubscription(data as Subscription);
+      .maybeSingle();
+    setSubscription(data ? (data as Subscription) : null);
+  };
+
+  const fetchAdminStatus = async (userId: string) => {
+    const { data } = await supabase.rpc("has_role", {
+      _user_id: userId,
+      _role: "admin" as any,
+    });
+    setIsAdmin(!!data);
   };
 
   const refreshSubscription = async () => {
@@ -76,19 +86,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Listen for auth state changes BEFORE getSession
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await fetchProfile(session.user.id);
-          await fetchSubscription(session.user.id);
+          // Set loading false immediately, fetch data in background
+          setLoading(false);
+          // Fetch all user data in parallel (non-blocking for loading state)
+          Promise.all([
+            fetchProfile(session.user.id),
+            fetchSubscription(session.user.id),
+            fetchAdminStatus(session.user.id),
+          ]);
         } else {
           setProfile(null);
           setSubscription(null);
+          setIsAdmin(false);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -96,8 +112,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
-        fetchSubscription(session.user.id);
+        Promise.all([
+          fetchProfile(session.user.id),
+          fetchSubscription(session.user.id),
+          fetchAdminStatus(session.user.id),
+        ]);
       }
       setLoading(false);
     });
@@ -126,6 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setProfile(null);
     setSubscription(null);
+    setIsAdmin(false);
   };
 
   const resetPassword = async (email: string) => {
@@ -160,6 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session,
         profile,
         subscription,
+        isAdmin,
         loading,
         signUp,
         signIn,
