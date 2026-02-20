@@ -1,11 +1,25 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Brain, Crown, User, LogIn } from "lucide-react";
+import { Brain, Crown, User, LogIn, Shield, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { SubscriptionBadge } from "@/components/SubscriptionBadge";
+import { supabase } from "@/integrations/supabase/client";
 
 const Navigation = () => {
   const location = useLocation();
   const { user, isPro } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setIsAdmin(false); return; }
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .single()
+      .then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
 
   const links = [
     { to: "/library", label: "Agent Library" },
@@ -41,6 +55,17 @@ const Navigation = () => {
               {link.label}
             </Link>
           ))}
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className={`text-sm font-medium transition-colors duration-200 flex items-center gap-1.5 ${
+                location.pathname === "/admin" ? "text-gold" : "text-cream-dim hover:text-cream"
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              Admin
+            </Link>
+          )}
         </div>
 
         {/* Auth / CTA */}
@@ -48,6 +73,15 @@ const Navigation = () => {
           {user ? (
             <>
               {isPro() && <SubscriptionBadge />}
+              {(isPro() || isAdmin) && (
+                <Link
+                  to="/create-agent"
+                  className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Agent
+                </Link>
+              )}
               <Link
                 to="/billing"
                 className="flex items-center gap-1.5 text-sm font-medium text-cream-dim hover:text-cream transition-colors"
@@ -80,3 +114,4 @@ const Navigation = () => {
 };
 
 export default Navigation;
+

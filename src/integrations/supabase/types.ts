@@ -38,6 +38,78 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_agents: {
+        Row: {
+          accent_color: string | null
+          conversation_starters: string[] | null
+          created_at: string
+          created_by: string | null
+          domain: string
+          era: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          is_public: boolean
+          layer_core_values: string | null
+          layer_decision_history: string | null
+          layer_emotional_stance: string | null
+          layer_knowledge_base: string | null
+          layer_language_dna: string | null
+          layer_mental_models: string | null
+          layer_reasoning_patterns: string | null
+          name: string
+          slug: string
+          tagline: string | null
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          conversation_starters?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+          era?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          is_public?: boolean
+          layer_core_values?: string | null
+          layer_decision_history?: string | null
+          layer_emotional_stance?: string | null
+          layer_knowledge_base?: string | null
+          layer_language_dna?: string | null
+          layer_mental_models?: string | null
+          layer_reasoning_patterns?: string | null
+          name: string
+          slug: string
+          tagline?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          conversation_starters?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+          era?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          is_public?: boolean
+          layer_core_values?: string | null
+          layer_decision_history?: string | null
+          layer_emotional_stance?: string | null
+          layer_knowledge_base?: string | null
+          layer_language_dna?: string | null
+          layer_mental_models?: string | null
+          layer_reasoning_patterns?: string | null
+          name?: string
+          slug?: string
+          tagline?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       knowledge_sources: {
         Row: {
           agent_id: string
