@@ -48,34 +48,28 @@ serve(async (req) => {
     }
 
     // Step 2: Generate the full 7-layer Cognitive OS blueprint using AI
-    const prompt = `You are building a "Cognitive OS" — a deep psychological and philosophical profile of a real person or book's author.
+    const prompt = `Build a "Cognitive OS" — a psychological/philosophical profile for: ${type === "book" ? `the author of "${name}"` : `"${name}"`}${extra ? `. Focus: ${extra}` : ""}.
 
-${type === "book"
-  ? `Build this for the key thinker/author behind: "${name}"${extra ? `\nAdditional context: ${extra}` : ""}`
-  : `Build this for: "${name}"${extra ? `\nAdditional context: ${extra}` : ""}`
-}
+${wikiContext ? `Wikipedia:\n${wikiContext.slice(0, 3000)}\n` : ""}
 
-${wikiContext ? `Wikipedia Context:\n${wikiContext.slice(0, 4000)}` : ""}
-
-Generate a complete 7-layer Cognitive OS blueprint. Be specific, accurate, and deep — draw from their actual documented beliefs, writings, and decisions.
-
-Return valid JSON with EXACTLY these fields:
+Return JSON with exactly these fields (100-200 words per layer):
 {
   "name": "Full Name",
-  "era": "birth year – death year or 'present'",
-  "domain": "Primary Domain & Specialty (max 4 words)",
-  "tagline": "One vivid sentence capturing their essence and what makes them unique (max 20 words)",
+  "era": "YYYY – YYYY or present",
+  "domain": "Domain (max 4 words)",
+  "tagline": "One vivid sentence, max 20 words",
   "accentColor": "HSL values only e.g. '200 80% 52%'",
   "conversationStarters": ["Question 1", "Question 2", "Question 3"],
-  "layer_core_values": "Deep description of their core values and ethical foundation (200-400 words)",
-  "layer_mental_models": "Their key mental frameworks and decision-making lenses with examples (200-400 words)",
-  "layer_reasoning_patterns": "Step-by-step how they think through problems (200-400 words)",
-  "layer_emotional_stance": "How they relate to emotions, adversity, joy, failure (200-400 words)",
-  "layer_language_dna": "Their voice, tone, vocabulary, rhetorical style, key phrases they use (200-400 words)",
-  "layer_decision_history": "Key life decisions that reveal their values and reasoning in action (200-400 words)",
-  "layer_knowledge_base": "Core domains of expertise, key works, key collaborators, key influences (200-400 words)"
+  "layer_core_values": "Core ethical/philosophical foundation",
+  "layer_mental_models": "Key thinking frameworks with examples",
+  "layer_reasoning_patterns": "How they reason step-by-step",
+  "layer_emotional_stance": "How they relate to emotions and adversity",
+  "layer_language_dna": "Voice, tone, vocabulary, rhetorical style",
+  "layer_decision_history": "Key decisions that reveal their values",
+  "layer_knowledge_base": "Core expertise, key works, key influences"
 }`;
 
+    // Use flash model for speed (~5-10s vs ~30s for pro)
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -83,9 +77,9 @@ Return valid JSON with EXACTLY these fields:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "You are an expert in psychology, philosophy, and intellectual biography. Return only valid JSON." },
+          { role: "system", content: "You are an expert in psychology, philosophy, and intellectual biography. Return only valid JSON with no markdown or code blocks." },
           { role: "user", content: prompt },
         ],
         response_format: { type: "json_object" },
@@ -105,7 +99,10 @@ Return valid JSON with EXACTLY these fields:
     if (!aiRes.ok) throw new Error(`AI error: ${aiRes.status}`);
 
     const aiData = await aiRes.json();
-    const blueprint = JSON.parse(aiData.choices[0].message.content);
+    let rawContent = aiData.choices[0].message.content;
+    // Strip markdown code blocks if present
+    rawContent = rawContent.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+    const blueprint = JSON.parse(rawContent);
 
     return new Response(
       JSON.stringify({ success: true, blueprint }),
