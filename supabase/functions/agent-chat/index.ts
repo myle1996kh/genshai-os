@@ -212,8 +212,45 @@ serve(async (req) => {
       .limit(30);
 
     // Use custom system prompt for custom agents, fallback to static prompts
-    const systemPrompt = customSystemPrompt || agentSystemPrompts[agentId] || 
+    const basePrompt = customSystemPrompt || agentSystemPrompts[agentId] || 
       `You are a brilliant cognitive simulation of a great thinker. Apply their authentic mental models, reasoning patterns, and values to help the user with their specific situation.`;
+
+    // Mermaid diagram rules appended to every prompt to prevent parse errors
+    const mermaidRules = `
+
+## Diagram & Visualization Rules
+When you produce Mermaid diagrams, ALWAYS follow these strict rules to ensure they render correctly:
+
+1. **Node labels**: Use only plain alphanumeric characters and spaces inside labels. NEVER use parentheses ( ), ampersands &, angle brackets < >, quotation marks, or any special punctuation inside node label brackets.
+   - BAD:  A[Decision (Yes/No)] --> B{Cost & Benefit}
+   - GOOD: A[Decision Yes or No] --> B{Cost and Benefit}
+
+2. **Node IDs**: Keep node IDs short and alphanumeric only (e.g., A, B1, NodeA). No spaces or special characters.
+
+3. **Strings with spaces in labels**: Wrap labels in double quotes if they contain spaces, but still avoid special characters inside the quoted string.
+   - GOOD: A["First Step"] --> B["Second Step"]
+
+4. **Supported diagram types**: Only use: graph TD, graph LR, graph TB, flowchart TD, flowchart LR, sequenceDiagram, pie title, erDiagram. Do NOT use xychart, sankey, or other advanced types unless explicitly requested.
+
+5. **Flowchart direction**: Default to \`graph TD\` (top-down) unless LR (left-right) makes more sense.
+
+6. **Keep it simple**: Aim for 5–12 nodes maximum. Complex diagrams are harder to parse and less useful.
+
+7. **Always fence**: Wrap Mermaid code in a \`\`\`mermaid code block.
+
+Example of a valid diagram:
+\`\`\`mermaid
+graph TD
+    A["Identify Problem"] --> B["Apply First Principles"]
+    B --> C{"Is assumption valid?"}
+    C -->|Yes| D["Build Solution"]
+    C -->|No| E["Discard and Rethink"]
+    E --> B
+    D --> F["Test and Iterate"]
+\`\`\`
+`;
+
+    const systemPrompt = basePrompt + mermaidRules;
 
     // Build message history for AI
     const aiMessages = [
