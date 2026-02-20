@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_provider_models: {
+        Row: {
+          fetched_at: string
+          id: string
+          is_active: boolean
+          model_id: string
+          model_name: string
+          provider_id: string
+        }
+        Insert: {
+          fetched_at?: string
+          id?: string
+          is_active?: boolean
+          model_id: string
+          model_name: string
+          provider_id: string
+        }
+        Update: {
+          fetched_at?: string
+          id?: string
+          is_active?: boolean
+          model_id?: string
+          model_name?: string
+          provider_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_provider_models_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_providers: {
+        Row: {
+          api_key: string
+          base_url: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          is_verified: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          base_url: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          base_url?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           agent_id: string
@@ -180,6 +251,47 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      model_mappings: {
+        Row: {
+          created_at: string
+          id: string
+          is_default_fallback: boolean
+          model_id: string | null
+          module_label: string
+          module_name: string
+          provider_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default_fallback?: boolean
+          model_id?: string | null
+          module_label: string
+          module_name: string
+          provider_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default_fallback?: boolean
+          model_id?: string | null
+          module_label?: string
+          module_name?: string
+          provider_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_mappings_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
             referencedColumns: ["id"]
           },
         ]
