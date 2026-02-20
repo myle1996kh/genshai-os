@@ -9,7 +9,7 @@ import {
   Shield, BarChart3, Clock, CheckCircle2,
   Edit2, Save, X, Package,
   RefreshCw, Crown, Brain, Sparkles, Search,
-  Bot, Trash2, Globe, Lock, ChevronRight, Zap, BookOpen
+  Bot, Trash2, Globe, Lock, ChevronRight, Zap, BookOpen, Cpu
 } from "lucide-react";
 
 interface UserRow {
@@ -555,6 +555,8 @@ export default function Admin() {
     { id: "plans" as const, label: "Plans", icon: Package },
   ];
 
+  const handleNavigateToProvider = () => navigate("/ai-provider");
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -568,10 +570,18 @@ export default function Admin() {
               <h1 className="font-display text-3xl text-foreground">Admin Dashboard</h1>
               <p className="text-muted-foreground text-sm">Platform management & control</p>
             </div>
-            <button onClick={fetchAllData} className="ml-auto flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <RefreshCw className={`w-4 h-4 ${dataLoading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
+            <div className="ml-auto flex items-center gap-3">
+              <button
+                onClick={handleNavigateToProvider}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-sm text-foreground hover:bg-muted/80 transition-colors"
+              >
+                <Cpu className="w-4 h-4 text-primary" /> AI Providers
+              </button>
+              <button onClick={fetchAllData} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <RefreshCw className={`w-4 h-4 ${dataLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
