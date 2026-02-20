@@ -174,11 +174,11 @@ export default function CreateAgent() {
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate("/login"); return; }
-    // All logged-in users can create agents; check admin separately
+    // All logged-in users can create agents; no subscription required
     setHasAccess(true);
     supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin")
-      .then(({ data }) => setIsAdmin((data || []).length > 0));
-  }, [user, loading]);
+      .then(({ data }) => setIsAdmin(!!(data && data.length > 0)));
+  }, [user, loading, navigate]);
 
   useEffect(() => {
     if (!agentId || !hasAccess) return;
@@ -268,7 +268,8 @@ export default function CreateAgent() {
     } finally { setSaving(false); }
   };
 
-  if (loading || hasAccess === null) {
+  // Show spinner only while auth is still resolving (hasAccess set almost immediately after)
+  if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

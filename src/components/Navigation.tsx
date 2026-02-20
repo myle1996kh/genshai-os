@@ -18,7 +18,7 @@ const Navigation = () => {
       .select("role")
       .eq("user_id", user.id)
       .eq("role", "admin")
-      .single()
+      .maybeSingle()
       .then(({ data }) => setIsAdmin(!!data));
   }, [user]);
 
@@ -60,27 +60,27 @@ const Navigation = () => {
               {link.label}
             </Link>
           ))}
+          {user && (
+            <Link
+              to="/create-agent"
+              className={`text-sm font-medium transition-colors duration-200 flex items-center gap-1.5 ${
+                location.pathname === "/create-agent" ? "text-gold" : "text-cream-dim hover:text-cream"
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Agent
+            </Link>
+          )}
           {isAdmin && (
-            <>
-              <Link
-                to="/create-agent"
-                className={`text-sm font-medium transition-colors duration-200 flex items-center gap-1.5 ${
-                  location.pathname === "/create-agent" ? "text-gold" : "text-cream-dim hover:text-cream"
-                }`}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New Agent
-              </Link>
-              <Link
-                to="/admin"
-                className={`text-sm font-medium transition-colors duration-200 flex items-center gap-1.5 ${
-                  location.pathname === "/admin" ? "text-gold" : "text-cream-dim hover:text-cream"
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                Admin
-              </Link>
-            </>
+            <Link
+              to="/admin"
+              className={`text-sm font-medium transition-colors duration-200 flex items-center gap-1.5 ${
+                location.pathname === "/admin" ? "text-gold" : "text-cream-dim hover:text-cream"
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              Admin
+            </Link>
           )}
         </div>
 
@@ -110,25 +110,25 @@ const Navigation = () => {
                       <div className="text-xs text-cream-dim/60 font-mono truncate">{user.email}</div>
                     </div>
                     <div className="p-1.5 space-y-0.5">
+                      {user && (
+                        <Link
+                          to="/create-agent"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-cream-dim hover:text-cream hover:bg-gold/8 transition-colors"
+                        >
+                          <Plus className="w-4 h-4 text-gold" />
+                          Create Agent
+                        </Link>
+                      )}
                       {isAdmin && (
-                        <>
-                          <Link
-                            to="/admin"
-                            onClick={() => setMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-cream-dim hover:text-cream hover:bg-gold/8 transition-colors"
-                          >
-                            <Shield className="w-4 h-4 text-gold" />
-                            Admin Dashboard
-                          </Link>
-                          <Link
-                            to="/create-agent"
-                            onClick={() => setMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-cream-dim hover:text-cream hover:bg-gold/8 transition-colors"
-                          >
-                            <Plus className="w-4 h-4 text-gold" />
-                            Create Agent
-                          </Link>
-                        </>
+                        <Link
+                          to="/admin"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-cream-dim hover:text-cream hover:bg-gold/8 transition-colors"
+                        >
+                          <Shield className="w-4 h-4 text-gold" />
+                          Admin Dashboard
+                        </Link>
                       )}
                       <button
                         onClick={() => { setMenuOpen(false); handleSignOut(); }}

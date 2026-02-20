@@ -498,12 +498,12 @@ export default function Admin() {
   useEffect(() => {
     if (!loading && !user) { navigate("/login"); return; }
     if (!user) return;
-    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").single()
+    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
       .then(({ data }) => {
         if (!data) { navigate("/"); return; }
         setIsAdmin(true);
       });
-  }, [user, loading]);
+  }, [user, loading, navigate]);
 
   useEffect(() => {
     if (!isAdmin) return;
