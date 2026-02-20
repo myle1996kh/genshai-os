@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Brain, Send, Sparkles, Cpu } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useParams, Link, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Brain, Send, User } from "lucide-react";
 import { agents } from "@/data/agents";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -10,101 +11,206 @@ interface Message {
   timestamp: Date;
 }
 
-const getSystemResponse = (agentId: string, userMessage: string): string => {
-  const agent = agents.find((a) => a.id === agentId);
-  if (!agent) return "I'm here. Tell me what's on your mind.";
-
-  const responses: Record<string, string[]> = {
-    "thich-nhat-hanh": [
-      "Let us begin with a breath. Not to escape what you're feeling, but to arrive more fully within it. What you describe is not a problem to solve — it is an invitation to understand. Breathe in, and recognize: *this suffering is here*. Breathe out: *I am here with it*. Now, can you tell me more about the root of this feeling? When did it first arrive?",
-      "In our tradition, we say that understanding is the foundation of love. You cannot love what you do not understand — including yourself. What you are experiencing has deep roots. Let us look at them together, without judgment. What happened before the anxiety appeared today?",
-      "There is a beautiful teaching: 'The present moment is the only moment available to us, and it is the door to all moments.' I notice you are living in a story about the future or the past. Can we return here, now, to this very breath?",
-    ],
-    "elon-musk": [
-      "Okay, let's apply First Principles. Strip away every assumption you're making. What is *physically* impossible about this? Because most things people call impossible are just conventionally difficult. Start with: what is the desired end state? Not the solution — the end state. And then work backwards. What does physics actually allow?",
-      "You're thinking too small. A 10% improvement is not interesting — 10x is the only thing worth working toward, because it forces you to rethink everything from scratch rather than optimizing a broken system. What would have to be true for this to be 10x better?",
-      "The biggest mistake I see is confusing the map for the territory. You're describing the solution space, not the problem space. Define the problem with complete precision. What specifically is failing? Not the symptoms — the actual failure mode.",
-    ],
-    "charlie-munger": [
-      "Invert, always invert. Instead of asking how to succeed at this, ask yourself: what would guarantee failure? Make a list. Now don't do those things. Most problems, when you invert them, become obvious. What are you doing right now that you'd put on that failure list?",
-      "I'm going to ask you a Munger question: what are the incentives at play here? Whose interests are served by the situation you're describing? Because show me the incentives and I'll show you the outcome. The answer to your problem almost certainly lies in the incentive structure.",
-      "You're experiencing what I call a Lollapalooza effect — multiple psychological tendencies operating simultaneously in the same direction. Social proof, consistency bias, and loss aversion are all pushing you toward a suboptimal decision. Let's name each one clearly so you can counter them.",
-    ],
-    "naval-ravikant": [
-      "Let me reframe this. The question isn't how to get a better job — it's how to build specific knowledge that cannot be replicated or outsourced. What are you doing when you lose track of time? That obsessive curiosity is pointing directly at your leverage. Follow that.",
-      "There's a concept I keep returning to: you want to be the best in the world at the intersection of a few things, not mediocre at one thing everyone else does. Most careers fail because people compete instead of creating. What unique combination of skills do you have that the market hasn't figured out yet?",
-      "Here's the honest answer: wealth is created by giving society what it wants but doesn't know how to get — at scale. Not by working harder. The question is: what can you build or create that delivers value while you sleep? Everything else is just a sophisticated form of trading time for money.",
-    ],
-    "marcus-aurelius": [
-      "You have been dealt circumstances, as every person is. The Stoic question is not 'why did this happen to me?' but 'what does virtue require of me in response to this?' The obstacle you describe is not in your way — it *is* the way. What is the virtuous action available to you right now, in this moment?",
-      "I wrote to myself: 'You have power over your mind, not outside events. Realize this, and you will find strength.' What you cannot control, release. What you can control, act upon immediately. Draw that line clearly. On which side does this problem actually live?",
-      "Death is always in the room with me. This is not morbid — it clarifies everything. When I imagine looking back at this moment from my deathbed, the petty frustrations dissolve and the true priorities become luminous. What would you regret not having done?",
-    ],
-    "nikola-tesla": [
-      "I built machines entirely in my mind before I ever constructed them physically. Every component, every resonance, every failure — I could run them, test them, modify them in my imagination. This is a learnable skill. When you visualize this problem, what do you actually *see*? Most people think in words when they should be thinking in images and systems.",
-      "The conventional solution is not interesting to me. The conventional solution represents the boundaries of the previous generation's thinking. A new principle — a new understanding of the underlying forces — that is what unlocks the impossible. What principle, if discovered, would make your problem trivially solvable?",
-      "I was once told my alternating current system was impossible. The evidence seemed to support my critics. But the math was clear, and the math did not lie. They were reasoning from the wrong axioms. Question the axioms, not the conclusion. What are you assuming that might be false?",
-    ],
-  };
-
-  const agentResponses = responses[agentId] || ["I'm here to think with you. Tell me more."];
-  return agentResponses[Math.floor(Math.random() * agentResponses.length)];
+// Generate or retrieve a persistent session ID
+const getSessionId = () => {
+  let session = localStorage.getItem("genshai-session");
+  if (!session) {
+    session = `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem("genshai-session", session);
+  }
+  return session;
 };
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const Session = () => {
   const { agentId } = useParams<{ agentId: string }>();
+  const [searchParams] = useSearchParams();
   const agent = agents.find((a) => a.id === agentId);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    // Opening message
-    if (agent) {
-      const opener: Message = {
-        id: "opener",
-        role: "agent",
-        content: `I am here. Not as a ghost or a recording — as a living cognitive process built from everything I believed, wrote, decided, and experienced. You have something on your mind. Let us begin.`,
-        timestamp: new Date(),
-      };
-      setMessages([opener]);
-    }
-  }, [agent]);
+  const userSession = getSessionId();
 
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [messages, isStreaming]);
 
-  const handleSend = async () => {
-    if (!input.trim() || !agentId) return;
+  // Load conversation history on mount
+  useEffect(() => {
+    if (!agentId || !agent) return;
+
+    const loadHistory = async () => {
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-conversation?agentId=${agentId}&userSession=${userSession}`,
+          {
+            headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+          }
+        );
+        const data = await res.json();
+
+        if (data.conversationId) {
+          setConversationId(data.conversationId);
+        }
+
+        const opener: Message = {
+          id: "opener",
+          role: "agent",
+          content:
+            data.messages?.length > 0
+              ? `Welcome back. I remember our conversation. Shall we continue where we left off, or is there something new on your mind?`
+              : `I am here. Not as a ghost or a recording — as a living cognitive process built from everything I believed, wrote, decided, and experienced. You have something on your mind. Let us begin.`,
+          timestamp: new Date(),
+        };
+
+        const historyMsgs: Message[] = (data.messages || []).map((m: any) => ({
+          id: m.id,
+          role: m.role as "user" | "agent",
+          content: m.content,
+          timestamp: new Date(m.created_at),
+        }));
+
+        setMessages([opener, ...historyMsgs]);
+      } catch (e) {
+        // Fallback: just show opener
+        setMessages([{
+          id: "opener",
+          role: "agent",
+          content: `I am here. Not as a ghost or a recording — as a living cognitive process built from everything I believed, wrote, decided, and experienced. You have something on your mind. Let us begin.`,
+          timestamp: new Date(),
+        }]);
+      } finally {
+        setHistoryLoaded(true);
+      }
+    };
+
+    loadHistory();
+  }, [agentId, agent]);
+
+  // Handle starter from URL
+  useEffect(() => {
+    const starter = searchParams.get("starter");
+    if (starter && historyLoaded) {
+      setInput(starter);
+      inputRef.current?.focus();
+    }
+  }, [searchParams, historyLoaded]);
+
+  const handleSend = useCallback(async () => {
+    if (!input.trim() || !agentId || isStreaming) return;
+
+    const userContent = input.trim();
+    setInput("");
 
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: userContent,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setIsTyping(true);
+    setIsStreaming(true);
 
-    // Simulate thinking delay
-    await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
+    // Create placeholder for streaming agent response
+    const agentMsgId = (Date.now() + 1).toString();
+    setMessages((prev) => [
+      ...prev,
+      { id: agentMsgId, role: "agent", content: "", timestamp: new Date() },
+    ]);
 
-    const response = getSystemResponse(agentId, input.trim());
-    const agentMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: "agent",
-      content: response,
-      timestamp: new Date(),
-    };
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
 
-    setIsTyping(false);
-    setMessages((prev) => [...prev, agentMsg]);
-  };
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/agent-chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+        },
+        body: JSON.stringify({
+          agentId,
+          messages: [{ role: "user", content: userContent }],
+          conversationId,
+          userSession,
+        }),
+        signal: ctrl.signal,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: "Unknown error" }));
+        if (res.status === 429) toast.error("Rate limit reached. Please wait a moment.");
+        else if (res.status === 402) toast.error("AI credits exhausted. Add credits in settings.");
+        else toast.error(errData.error || "Failed to reach the agent.");
+        setMessages((prev) => prev.filter((m) => m.id !== agentMsgId));
+        setIsStreaming(false);
+        return;
+      }
+
+      // Capture conversation ID from header
+      const convId = res.headers.get("X-Conversation-Id");
+      if (convId && !conversationId) setConversationId(convId);
+
+      // Stream SSE
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        let newlineIndex: number;
+
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              fullContent += content;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === agentMsgId ? { ...m, content: fullContent } : m
+                )
+              );
+            }
+          } catch {
+            buffer = line + "\n" + buffer;
+            break;
+          }
+        }
+      }
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        toast.error("Connection failed. Please try again.");
+        setMessages((prev) => prev.filter((m) => m.id !== agentMsgId));
+      }
+    } finally {
+      setIsStreaming(false);
+    }
+  }, [input, agentId, isStreaming, conversationId, userSession]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -116,6 +222,20 @@ const Session = () => {
   const handleStarterClick = (starter: string) => {
     setInput(starter);
     inputRef.current?.focus();
+  };
+
+  // Render message with markdown-lite (bold, italic, emphasis)
+  const renderContent = (content: string) => {
+    if (!content) return null;
+    return content.split(/(\*[^*]+\*)/).map((part, i) =>
+      part.startsWith("*") && part.endsWith("*") ? (
+        <em key={i} className="text-gold not-italic font-medium">
+          {part.slice(1, -1)}
+        </em>
+      ) : (
+        part
+      )
+    );
   };
 
   if (!agent) {
@@ -131,16 +251,18 @@ const Session = () => {
     );
   }
 
+  const userMessages = messages.filter((m) => m.role === "user");
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Session header */}
       <div className="glass-strong border-b border-gold/10 px-6 py-4 flex items-center gap-4">
         <Link
-          to="/library"
+          to={`/agent/${agent.id}`}
           className="flex items-center gap-1.5 text-cream-dim hover:text-cream transition-colors text-sm"
         >
           <ArrowLeft className="w-4 h-4" />
-          Library
+          Profile
         </Link>
         <div className="w-px h-5 bg-border" />
         <div className="flex items-center gap-3 flex-1">
@@ -159,6 +281,12 @@ const Session = () => {
             <div className="text-cream-dim text-xs">{agent.domain}</div>
           </div>
         </div>
+        {conversationId && (
+          <div className="hidden md:flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-gold/60" />
+            <span className="font-mono text-cream-dim/50 text-xs">Memory active</span>
+          </div>
+        )}
         <div className="os-tag hidden md:block">Cognitive Session</div>
       </div>
 
@@ -166,7 +294,7 @@ const Session = () => {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
           {/* Conversation starters (before any user message) */}
-          {messages.length === 1 && (
+          {userMessages.length === 0 && historyLoaded && (
             <div className="space-y-3">
               <p className="text-cream-dim text-xs font-mono uppercase tracking-widest text-center">
                 — Or begin with one of these —
@@ -201,7 +329,7 @@ const Session = () => {
                 </div>
               ) : (
                 <div className="flex-shrink-0 w-9 h-9 rounded-full bg-muted flex items-center justify-center border border-border">
-                  <Brain className="w-4 h-4 text-cream-dim" />
+                  <User className="w-4 h-4 text-cream-dim" />
                 </div>
               )}
 
@@ -213,21 +341,17 @@ const Session = () => {
                     : "bg-secondary text-cream border border-border"
                 }`}
               >
-                {msg.content.split(/(\*[^*]+\*)/).map((part, i) =>
-                  part.startsWith("*") && part.endsWith("*") ? (
-                    <em key={i} className="text-gold not-italic">
-                      {part.slice(1, -1)}
-                    </em>
-                  ) : (
-                    part
-                  )
+                {msg.content ? (
+                  renderContent(msg.content)
+                ) : (
+                  <span className="text-cream-dim/40 animate-pulse">▋</span>
                 )}
               </div>
             </div>
           ))}
 
-          {/* Typing indicator */}
-          {isTyping && (
+          {/* Streaming indicator when no content yet */}
+          {isStreaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex gap-4">
               <img
                 src={agent.image}
@@ -268,14 +392,14 @@ const Session = () => {
             </div>
             <button
               onClick={handleSend}
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim() || isStreaming}
               className="flex-shrink-0 w-11 h-11 rounded-xl gradient-gold flex items-center justify-center text-obsidian hover:opacity-90 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4" />
             </button>
           </div>
           <p className="text-cream-dim/40 text-xs text-center mt-2 font-mono">
-            Enter to send · Shift+Enter for new line
+            Enter to send · Shift+Enter for new line · AI-powered · Memory across sessions
           </p>
         </div>
       </div>

@@ -14,7 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          agent_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_session: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_session: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_session?: string
+        }
+        Relationships: []
+      }
+      knowledge_sources: {
+        Row: {
+          agent_id: string
+          created_at: string
+          extracted_content: string | null
+          id: string
+          mental_models: string[] | null
+          reasoning_patterns: string[] | null
+          source_type: string
+          status: string
+          title: string
+          url: string | null
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          extracted_content?: string | null
+          id?: string
+          mental_models?: string[] | null
+          reasoning_patterns?: string[] | null
+          source_type: string
+          status?: string
+          title: string
+          url?: string | null
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          extracted_content?: string | null
+          id?: string
+          mental_models?: string[] | null
+          reasoning_patterns?: string[] | null
+          source_type?: string
+          status?: string
+          title?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

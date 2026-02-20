@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Brain, Cpu, MessageSquare, Zap } from "lucide-react";
 
+
 export interface Agent {
   id: string;
   name: string;
@@ -80,14 +81,23 @@ const AgentCard = ({ agent, featured = false }: AgentCardProps) => {
           ))}
         </div>
 
-        {/* CTA */}
-        <Link
-          to={`/session/${agent.id}`}
-          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-gold/25 text-gold text-sm font-medium hover:bg-gold/10 hover:border-gold/50 transition-all duration-200 group/btn"
-        >
-          <MessageSquare className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
-          Begin Session
-        </Link>
+        {/* CTAs */}
+        <div className="flex gap-2">
+          <Link
+            to={`/agent/${agent.id}`}
+            className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-xl border border-gold/20 text-cream-dim text-sm font-medium hover:bg-gold/5 hover:border-gold/35 hover:text-cream transition-all duration-200"
+          >
+            <Brain className="w-3.5 h-3.5" />
+            Profile
+          </Link>
+          <Link
+            to={`/session/${agent.id}`}
+            className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-xl border border-gold/25 text-gold text-sm font-medium hover:bg-gold/10 hover:border-gold/50 transition-all duration-200 group/btn"
+          >
+            <MessageSquare className="w-3.5 h-3.5 transition-transform group-hover/btn:scale-110" />
+            Session
+          </Link>
+        </div>
       </div>
     </div>
   );
