@@ -274,7 +274,7 @@ const Navigation = () => {
                     Admin Dashboard
                   </MobileLink>
                   <MobileLink to="/ai-provider" icon={<Cpu className="w-4 h-4" />} active={isActive("/ai-provider")} onClick={() => setMobileOpen(false)}>
-                    AI Settings
+                    AI Providers
                   </MobileLink>
                 </>
               )}

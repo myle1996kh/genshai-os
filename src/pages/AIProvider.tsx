@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import Navigation from "@/components/Navigation";
+
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, RefreshCw, CheckCircle2, XCircle, Eye, EyeOff,
@@ -365,7 +365,7 @@ function ModelMapper({
 }
 
 export default function AIProvider() {
-  const { user } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [tab, setTab] = useState<"providers" | "routing">("providers");
@@ -374,30 +374,25 @@ export default function AIProvider() {
   const [mappings, setMappings] = useState<ModelMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchingModels, setFetchingModels] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = useCallback(async () => {
-    const [provRes, modelRes, mapRes, roleRes] = await Promise.all([
+    const [provRes, modelRes, mapRes] = await Promise.all([
       supabase.from("ai_providers").select("*").order("created_at"),
       supabase.from("ai_provider_models").select("*").order("model_name"),
       supabase.from("model_mappings").select("*").order("is_default_fallback").order("module_label"),
-      user ? supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle() : Promise.resolve({ data: null }),
     ]);
     setProviders((provRes.data as Provider[]) || []);
     setModels((modelRes.data as ProviderModel[]) || []);
     setMappings((mapRes.data as ModelMapping[]) || []);
-    setIsAdmin(!!(roleRes as any).data);
     setLoading(false);
-  }, [user]);
+  }, []);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate("/login"); return; }
+    if (!isAdmin) { navigate("/"); return; }
     load();
-  }, [user, load, navigate]);
-
-  useEffect(() => {
-    if (!loading && !isAdmin) navigate("/");
-  }, [loading, isAdmin, navigate]);
+  }, [authLoading, user, isAdmin, load, navigate]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this provider and all its models?")) return;
@@ -430,7 +425,7 @@ export default function AIProvider() {
 
   const getModelCount = (providerId: string) => models.filter(m => m.provider_id === providerId).length;
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <RefreshCw className="w-6 h-6 text-primary animate-spin" />
@@ -440,7 +435,6 @@ export default function AIProvider() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 pt-24">
         {/* Header */}
         <div className="mb-8">
