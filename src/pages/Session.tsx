@@ -306,18 +306,15 @@ const Session = () => {
       return;
     }
     setAgentLoading(true);
-    // Try by slug first, then by id
     supabase
       .from("custom_agents")
       .select("*")
       .or(`slug.eq.${agentId},id.eq.${agentId}`)
       .eq("is_active", true)
       .limit(1)
-      .single()
-      .then(({ data, error }) => {
-        if (data && !error) {
-          setCustomAgent(data as CustomAgent);
-        }
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setCustomAgent(data as CustomAgent);
         setAgentLoading(false);
       });
   }, [agentId, staticAgent]);
