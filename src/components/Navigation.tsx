@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Brain, User, LogIn, Shield, Plus, LogOut, ChevronDown } from "lucide-react";
+import { Brain, LogIn, Shield, Plus, LogOut, ChevronDown, Cpu } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -82,6 +82,17 @@ const Navigation = () => {
               Admin
             </Link>
           )}
+          {isAdmin && (
+            <Link
+              to="/ai-provider"
+              className={`text-sm font-medium transition-colors duration-200 flex items-center gap-1.5 ${
+                location.pathname === "/ai-provider" ? "text-gold" : "text-cream-dim hover:text-cream"
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              AI Providers
+            </Link>
+          )}
         </div>
 
         {/* Auth area */}
@@ -128,6 +139,16 @@ const Navigation = () => {
                         >
                           <Shield className="w-4 h-4 text-gold" />
                           Admin Dashboard
+                        </Link>
+                      )}
+                      {isAdmin && (
+                        <Link
+                          to="/ai-provider"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-cream-dim hover:text-cream hover:bg-gold/8 transition-colors"
+                        >
+                          <Cpu className="w-4 h-4 text-gold" />
+                          AI Providers
                         </Link>
                       )}
                       <button
