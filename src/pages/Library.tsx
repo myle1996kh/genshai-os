@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Lock } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { agents } from "@/data/agents";
 import AgentCard from "@/components/AgentCard";
@@ -98,7 +98,7 @@ const Library = () => {
     return matchSearch && matchDomain;
   });
 
-  const canCreateAgent = isPro() || isAdmin;
+  const canCreateAgent = !!user; // All logged-in users can create agents
 
   return (
     <div className="min-h-screen bg-background pt-24 pb-20">
@@ -124,14 +124,13 @@ const Library = () => {
               </Link>
             </div>
           )}
-          {!canCreateAgent && user && (
+          {!canCreateAgent && !user && (
             <div className="mt-6">
               <Link
-                to="/pricing"
+                to="/signup"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gold/25 text-gold text-sm font-medium hover:bg-gold/10 transition-colors"
               >
-                <Lock className="w-3.5 h-3.5" />
-                Upgrade to Pro to create agents
+                Đăng ký để tạo agent
               </Link>
             </div>
           )}
@@ -187,7 +186,7 @@ const Library = () => {
             <div className="os-tag inline-block mb-4">Create Agent</div>
             <h3 className="font-display text-2xl text-cream mb-2">Build your own cognitive agent</h3>
             <p className="text-cream-dim text-sm max-w-md mx-auto mb-5">
-              Use the 7-layer blueprint builder to create a custom cognitive simulation of any thinker.
+              Use the 7-layer blueprint builder or auto-generate from any person or book with AI.
             </p>
             <Link
               to="/create-agent"
@@ -203,7 +202,6 @@ const Library = () => {
             <h3 className="font-display text-2xl text-cream mb-2">More minds on the way</h3>
             <p className="text-cream-dim text-sm max-w-md mx-auto">
               Richard Feynman, Simone de Beauvoir, Alan Watts, Carl Jung, and more.
-              Each requires months of deep cognitive modeling.
             </p>
           </div>
         )}

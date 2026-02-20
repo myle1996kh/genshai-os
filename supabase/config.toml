@@ -24,3 +24,6 @@ verify_jwt = false
 [functions.auto-research]
 verify_jwt = false
 
+[functions.auto-create-agent]
+verify_jwt = false
+
