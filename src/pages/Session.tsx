@@ -326,15 +326,42 @@ function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange
   );
 }
 
+// ─── Mermaid Sanitizer ────────────────────────────────────────────────────────
+// Mermaid's parser chokes on raw `(`, `)`, `&`, `<`, `>` inside node labels.
+// This pre-processor replaces them with safe unicode lookalikes so diagrams render.
+function sanitizeMermaid(raw: string): string {
+  // Replace content inside node label delimiters: [...], {...}, ((...))
+  // Strategy: replace ( ) & < > only when they appear inside label brackets
+  return raw
+    .split("\n")
+    .map((line) => {
+      // Match node label content inside [], {}, [[]], [()] etc.
+      return line.replace(
+        /(\[|{|>)([^\]}>]+?)(\]|}|<)/g,
+        (_match, open, content, close) => {
+          const safe = content
+            .replace(/\(/g, "﹙")
+            .replace(/\)/g, "﹚")
+            .replace(/&/g, "＆")
+            .replace(/</g, "﹤")
+            .replace(/>/g, "﹥");
+          return `${open}${safe}${close}`;
+        }
+      );
+    })
+    .join("\n");
+}
+
 // ─── Mermaid Diagram Renderer ─────────────────────────────────────────────────
 function MermaidDiagram({ chart }: { chart: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [rendered, setRendered] = useState(false);
   const id = useRef(`mermaid-${Math.random().toString(36).slice(2)}`);
+  const sanitized = sanitizeMermaid(chart);
 
   useEffect(() => {
-    if (!ref.current || !chart.trim()) return;
+    if (!ref.current || !sanitized.trim()) return;
     setError(null);
     setRendered(false);
 
@@ -363,7 +390,7 @@ function MermaidDiagram({ chart }: { chart: string }) {
         securityLevel: "loose",
       });
 
-      mermaid.render(id.current, chart.trim()).then(({ svg }) => {
+      mermaid.render(id.current, sanitized.trim()).then(({ svg }) => {
         if (ref.current) {
           ref.current.innerHTML = svg;
           // Make SVG responsive
@@ -379,7 +406,7 @@ function MermaidDiagram({ chart }: { chart: string }) {
         console.warn("Mermaid render error:", e);
       });
     });
-  }, [chart]);
+  }, [sanitized]);
 
   if (error) {
     return (
