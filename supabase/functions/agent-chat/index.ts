@@ -181,7 +181,7 @@ serve(async (req) => {
   }
 
   try {
-    const { agentId, messages, conversationId, userSession, userId, customSystemPrompt, model } = await req.json();
+    const { agentId, messages, conversationId, userSession, userId, customSystemPrompt, model, providerId } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -293,24 +293,46 @@ Example: > 💡 This is an insight callout
       })),
     ];
 
-    // Validate model against allowed list — fall back to default if invalid
-    const ALLOWED_MODELS = [
+    // ─── Model Routing ──────────────────────────────────────────────────────
+    const LOVABLE_MODELS = [
       "openai/gpt-5-mini", "openai/gpt-5", "openai/gpt-5-nano", "openai/gpt-5.2",
       "google/gemini-2.5-pro", "google/gemini-2.5-flash", "google/gemini-2.5-flash-lite",
       "google/gemini-2.5-flash-image", "google/gemini-3-pro-preview",
       "google/gemini-3-flash-preview", "google/gemini-3-pro-image-preview",
     ];
     const DEFAULT_MODEL = "google/gemini-2.5-flash";
-    const resolvedModel = model && ALLOWED_MODELS.includes(model) ? model : DEFAULT_MODEL;
-    if (model && !ALLOWED_MODELS.includes(model)) {
-      console.warn(`Invalid model requested: "${model}", falling back to ${DEFAULT_MODEL}`);
+
+    let apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    let apiKey = LOVABLE_API_KEY;
+    let resolvedModel = DEFAULT_MODEL;
+
+    if (providerId && model) {
+      // External provider — fetch base_url & api_key from DB
+      const { data: provider } = await supabase
+        .from("ai_providers")
+        .select("base_url, api_key, is_active, is_verified")
+        .eq("id", providerId)
+        .single();
+
+      if (provider?.is_active && provider?.is_verified) {
+        apiUrl = `${provider.base_url.replace(/\/+$/, "")}/chat/completions`;
+        apiKey = provider.api_key;
+        resolvedModel = model;
+        console.log(`Routing to external provider: ${apiUrl}, model: ${model}`);
+      } else {
+        console.warn(`Provider ${providerId} not valid, falling back to Lovable AI`);
+      }
+    } else if (model && LOVABLE_MODELS.includes(model)) {
+      resolvedModel = model;
+    } else if (model) {
+      console.warn(`Invalid model "${model}" without provider, falling back to ${DEFAULT_MODEL}`);
     }
 
-    // Call Lovable AI Gateway
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Call AI endpoint
+    const aiResponse = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
