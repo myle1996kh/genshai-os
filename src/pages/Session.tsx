@@ -306,7 +306,7 @@ function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange
           <span className="text-cream text-xs truncate">{selected.label.split(" (")[0]}</span>
           <ChevronUp className="w-3 h-3 text-gold/70 flex-shrink-0" />
         </button>
-        <div className="absolute top-full mt-1 right-0 w-64 glass-strong rounded-xl border border-gold/20 shadow-xl overflow-hidden z-[9999]">
+        <div className="absolute bottom-full mb-1 right-0 w-64 glass-strong rounded-xl border border-gold/20 shadow-xl overflow-hidden z-[9999]">
           <div className="px-3 py-2 border-b border-gold/10">
             <span className="font-mono text-gold/60 text-xs uppercase tracking-widest">Select Model</span>
           </div>
