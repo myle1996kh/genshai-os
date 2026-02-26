@@ -40,7 +40,7 @@ export function MermaidBlock({ chart, title }: MermaidBlockProps) {
     setError(null);
     setRendered(false);
 
-    import("mermaid").then((mod) => {
+    import("mermaid").then(async (mod) => {
       const mermaid = mod.default;
       mermaid.initialize({
         startOnLoad: false,
@@ -63,25 +63,34 @@ export function MermaidBlock({ chart, title }: MermaidBlockProps) {
         },
         flowchart: { curve: "basis", padding: 20 },
         securityLevel: "loose",
+        suppressErrorRendering: true,
       });
 
-      mermaid
-        .render(id.current, sanitized.trim())
-        .then(({ svg }) => {
-          if (ref.current) {
-            ref.current.innerHTML = svg;
-            const svgEl = ref.current.querySelector("svg");
-            if (svgEl) {
-              svgEl.style.maxWidth = "100%";
-              svgEl.style.height = "auto";
-            }
-            setRendered(true);
-          }
-        })
-        .catch((e) => {
+      try {
+        // Validate syntax first
+        const isValid = await mermaid.parse(sanitized.trim(), { suppressErrors: true });
+        if (!isValid) {
           setError("Could not render diagram. Showing source instead.");
-          console.warn("Mermaid render error:", e);
-        });
+          return;
+        }
+        const { svg } = await mermaid.render(id.current, sanitized.trim());
+        if (ref.current) {
+          ref.current.innerHTML = svg;
+          const svgEl = ref.current.querySelector("svg");
+          if (svgEl) {
+            svgEl.style.maxWidth = "100%";
+            svgEl.style.height = "auto";
+          }
+          setRendered(true);
+        }
+      } catch (e) {
+        // Clean up any error elements mermaid may have injected
+        const errEl = document.getElementById(id.current);
+        if (errEl) errEl.remove();
+        if (ref.current) ref.current.innerHTML = "";
+        setError("Could not render diagram. Showing source instead.");
+        console.warn("Mermaid render error:", e);
+      }
     });
   }, [sanitized]);
 
