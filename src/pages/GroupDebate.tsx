@@ -206,13 +206,20 @@ export default function GroupDebate() {
 
       setIsStreaming(false);
 
-      // Auto-advance if not paused
+      // Auto-advance if not paused — with 3s delay to avoid rate limits
       if (!pauseRef.current && !isComplete) {
-        setTimeout(() => runNextTurn(id), 1500);
+        setTimeout(() => runNextTurn(id), 3000);
       }
     } catch (e: any) {
       setIsStreaming(false);
-      toast.error(e.message);
+      // On rate limit, pause and notify
+      if (e.message?.includes("Rate limit") || e.message?.includes("429")) {
+        pauseRef.current = true;
+        setIsPaused(true);
+        toast.error("Rate limited — debate paused. Click Resume to continue.");
+      } else {
+        toast.error(e.message);
+      }
     }
   };
 
