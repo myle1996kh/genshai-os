@@ -22,6 +22,7 @@ import Admin from "./pages/Admin";
 import CreateAgent from "./pages/CreateAgent";
 import AIProvider from "./pages/AIProvider";
 import GroupDebate from "./pages/GroupDebate";
+import Sessions from "./pages/Sessions";
 import Navigation from "./components/Navigation";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,14 @@ const AppLayout = () => {
           element={
             <ProtectedRoute>
               <GroupDebate />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sessions"
+          element={
+            <ProtectedRoute>
+              <Sessions />
             </ProtectedRoute>
           }
         />

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Brain, LogIn, Shield, Plus, LogOut, ChevronDown, Cpu,
-  Menu, X, BookOpen, Sparkles, Users
+  Menu, X, BookOpen, Sparkles, Users, Clock,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -74,6 +74,14 @@ const Navigation = () => {
             </Link>
 
             {user && (
+              <Link to="/sessions" className={navLinkClass("/sessions")}>
+                <Clock className="inline w-3.5 h-3.5 mr-1.5 opacity-60" />
+                Sessions
+                {activeDot("/sessions")}
+              </Link>
+            )}
+
+            {user && (
               <Link to="/group-debate" className={navLinkClass("/group-debate")}>
                 <Users className="inline w-3.5 h-3.5 mr-1.5 opacity-60" />
                 Debate
@@ -138,6 +146,14 @@ const Navigation = () => {
                         >
                           <BookOpen className="w-4 h-4 text-gold" />
                           Agent Library
+                        </Link>
+                        <Link
+                          to="/sessions"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-cream-dim hover:text-cream hover:bg-gold/8 transition-colors"
+                        >
+                          <Clock className="w-4 h-4 text-gold" />
+                          Sessions
                         </Link>
                         <Link
                           to="/create-agent"
@@ -259,6 +275,12 @@ const Navigation = () => {
               <MobileLink to="/library" icon={<BookOpen className="w-4 h-4" />} active={isActive("/library")} onClick={() => setMobileOpen(false)}>
                 Agent Library
               </MobileLink>
+
+              {user && (
+                <MobileLink to="/sessions" icon={<Clock className="w-4 h-4" />} active={isActive("/sessions")} onClick={() => setMobileOpen(false)}>
+                  Sessions
+                </MobileLink>
+              )}
 
               {user && (
                 <MobileLink to="/group-debate" icon={<Users className="w-4 h-4" />} active={isActive("/group-debate")} onClick={() => setMobileOpen(false)}>
