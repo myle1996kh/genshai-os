@@ -19,16 +19,27 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Build an evocative portrait prompt
-    const eraText = era ? `from ${era}` : "";
+    // Build an evocative portrait prompt matching the platform's established visual style
+    const eraText = era ? `from the era of ${era}` : "";
     const domainText = domain || "philosophy and wisdom";
     const taglineText = tagline ? `Known for: "${tagline}".` : "";
 
-    const prompt = `A dramatic, cinematic portrait of ${agentName} ${eraText}, a master of ${domainText}. ${taglineText} 
-    Style: Renaissance oil painting meets modern digital art. Deep chiaroscuro lighting. Dark obsidian background with subtle golden highlights.
-    The subject gazes directly at viewer with intelligence and depth. Highly detailed face, painterly texture, dramatic shadows.
-    Color palette: rich dark tones, gold accents, deep shadows. Professional portrait, square format, centered composition.
-    Ultra high resolution, museum quality.`;
+    const prompt = `Create a photorealistic cinematic headshot portrait of a person who represents ${agentName} ${eraText}, a thinker in the domain of ${domainText}. ${taglineText}
+
+CRITICAL STYLE REQUIREMENTS — match exactly:
+- Photorealistic portrait photograph, NOT illustration, NOT painting, NOT cartoon
+- Head and upper shoulders only, tightly cropped, centered
+- Subject looking directly at camera with intelligent, penetrating gaze
+- Dramatic chiaroscuro lighting from one side, deep shadows on the other
+- Very dark, nearly black background with zero distractions
+- Warm skin tones, natural human appearance
+- Sharp focus on the eyes and face
+- Muted, desaturated color palette — earthy tones, no bright colors
+- No text, no watermarks, no borders, no overlays
+- Square 1:1 aspect ratio
+- Professional studio photography quality
+- The person should look like a real human being who embodies the spirit and era of ${agentName}
+- Age-appropriate face matching the era and persona`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -37,7 +48,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
+        model: "google/gemini-3-pro-image-preview",
         messages: [{ role: "user", content: prompt }],
         modalities: ["image", "text"],
       }),
