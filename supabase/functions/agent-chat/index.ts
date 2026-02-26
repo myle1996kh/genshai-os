@@ -278,7 +278,32 @@ Use emoji prefixes in blockquotes for styled callouts:
 Example: > 💡 This is an insight callout
 `;
 
-    const systemPrompt = basePrompt + mermaidRules;
+    // ─── Persistent Memory ─────────────────────────────────────────────────
+    let memoryContext = "";
+    try {
+      const memoryQuery = supabase
+        .from("agent_memories")
+        .select("content, memory_type, importance_score")
+        .eq("agent_id", agentId)
+        .order("importance_score", { ascending: false })
+        .limit(15);
+
+      if (userId) {
+        memoryQuery.eq("user_id", userId);
+      } else if (userSession) {
+        memoryQuery.eq("user_session", userSession);
+      }
+
+      const { data: memories } = await memoryQuery;
+      if (memories && memories.length > 0) {
+        const memLines = memories.map((m: any) => `- [${m.memory_type}] ${m.content}`).join("\n");
+        memoryContext = `\n\n## What You Remember About This User\nYou have had previous conversations with this user. Here is what you remember:\n${memLines}\n\nUse these memories naturally — reference them when relevant, build on past conversations, but don't list them all at once. Be natural about it, as if you genuinely remember.`;
+      }
+    } catch (e) {
+      console.warn("Memory fetch failed:", e);
+    }
+
+    const systemPrompt = basePrompt + memoryContext + mermaidRules;
 
     // Build message history for AI
     const aiMessages = [
@@ -400,6 +425,26 @@ Example: > 💡 This is an insight callout
             role: "agent",
             content: fullContent.trim(),
           });
+
+          // Trigger async memory extraction (fire-and-forget)
+          try {
+            const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+            fetch(`${SUPABASE_URL}/functions/v1/extract-memories`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                conversationId: convId,
+                agentId,
+                userId: userId || null,
+                userSession,
+              }),
+            }).catch(e => console.warn("Memory extraction fire-and-forget failed:", e));
+          } catch (e) {
+            console.warn("Memory extraction trigger failed:", e);
+          }
         }
       },
     });
