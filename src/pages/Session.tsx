@@ -491,6 +491,7 @@ const Session = () => {
           userSession,
           userId: user?.id || null,
           model: selectedModel.id,
+          providerId: selectedModel.providerId || null,
           // Pass custom agent's cognitive layers if available
           customSystemPrompt: customAgent ? buildCustomSystemPrompt(customAgent) : undefined,
         }),
