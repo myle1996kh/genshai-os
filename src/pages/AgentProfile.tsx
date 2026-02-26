@@ -3,10 +3,13 @@ import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft, Brain, Cpu, Zap, Globe, BookOpen, MessageSquare,
   Upload, Heart, Target, Lightbulb, Quote, Plus, Loader2,
+  RefreshCw, ImagePlus,
 } from "lucide-react";
 import { agents } from "@/data/agents";
 import { supabase } from "@/integrations/supabase/client";
 import AgentAvatar from "@/components/AgentAvatar";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const cognitiveOSLayers = [
   { id: "coreValues",     label: "Core Values",     icon: Heart, desc: "Fundamental beliefs encoded from their life's work" },
@@ -21,7 +24,7 @@ const additionalLayers = [
 ];
 
 interface CustomAgent {
-  id: string; slug: string; name: string; era: string | null; domain: string;
+  id: string; slug: string; name: string; era: string | null; domain: string; created_by: string | null;
   tagline: string | null; image_url: string | null; accent_color: string | null;
   conversation_starters: string[] | null;
   layer_core_values: string | null; layer_mental_models: string | null;
@@ -32,6 +35,7 @@ interface CustomAgent {
 
 const AgentProfile = () => {
   const { agentId } = useParams<{ agentId: string }>();
+  const { user, isAdmin } = useAuth();
 
   // 1. Try static agents first
   const staticAgent = agents.find((a) => a.id === agentId);
@@ -40,6 +44,7 @@ const AgentProfile = () => {
   const [agentLoading, setAgentLoading] = useState(!staticAgent);
   const [knowledgeSources, setKnowledgeSources] = useState<any[]>([]);
   const [sourcesLoading, setSourcesLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
 
   // 2. If not static, fetch from DB
   useEffect(() => {
@@ -95,7 +100,45 @@ const AgentProfile = () => {
       }
     : null;
 
-  // 4. Knowledge sources
+  // Can this user redesign the avatar?
+  const canRedesign = agent?.isCustom && customAgent && (
+    isAdmin || (user && customAgent.created_by === user.id)
+  );
+
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  const handleRedesignAvatar = async () => {
+    if (!customAgent || regenerating) return;
+    setRegenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-agent-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || SUPABASE_KEY}`,
+        },
+        body: JSON.stringify({
+          agentName: customAgent.name,
+          domain: customAgent.domain,
+          era: customAgent.era,
+          tagline: customAgent.tagline,
+          agentId: customAgent.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      // Update local state
+      setCustomAgent(prev => prev ? { ...prev, image_url: data.imageUrl } : prev);
+      toast.success("Avatar redesigned!");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to redesign avatar");
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   useEffect(() => {
     if (!agentId || agentLoading) return;
     supabase
@@ -182,6 +225,19 @@ const AgentProfile = () => {
                 <Upload className="w-4 h-4" />
                 Add Knowledge Source
               </Link>
+              {canRedesign && (
+                <button
+                  onClick={handleRedesignAvatar}
+                  disabled={regenerating}
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-primary/25 text-primary text-sm font-medium hover:bg-primary/10 hover:border-primary/50 transition-all duration-200 disabled:opacity-40"
+                >
+                  {regenerating ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Generating new portrait...</>
+                  ) : (
+                    <><ImagePlus className="w-4 h-4" /> Redesign Avatar</>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
