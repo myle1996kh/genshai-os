@@ -21,6 +21,7 @@ import Billing from "./pages/Billing";
 import Admin from "./pages/Admin";
 import CreateAgent from "./pages/CreateAgent";
 import AIProvider from "./pages/AIProvider";
+import GroupDebate from "./pages/GroupDebate";
 import Navigation from "./components/Navigation";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,14 @@ const AppLayout = () => {
         <Route path="/billing" element={<Billing />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/ai-provider" element={<AIProvider />} />
+        <Route
+          path="/group-debate"
+          element={
+            <ProtectedRoute>
+              <GroupDebate />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/create-agent"
           element={

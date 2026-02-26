@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Brain, LogIn, Shield, Plus, LogOut, ChevronDown, Cpu,
-  Menu, X, BookOpen, Sparkles
+  Menu, X, BookOpen, Sparkles, Users
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -72,6 +72,14 @@ const Navigation = () => {
               Library
               {activeDot("/library")}
             </Link>
+
+            {user && (
+              <Link to="/group-debate" className={navLinkClass("/group-debate")}>
+                <Users className="inline w-3.5 h-3.5 mr-1.5 opacity-60" />
+                Debate
+                {activeDot("/group-debate")}
+              </Link>
+            )}
 
             {user && (
               <Link to="/create-agent" className={navLinkClass("/create-agent")}>
@@ -251,6 +259,12 @@ const Navigation = () => {
               <MobileLink to="/library" icon={<BookOpen className="w-4 h-4" />} active={isActive("/library")} onClick={() => setMobileOpen(false)}>
                 Agent Library
               </MobileLink>
+
+              {user && (
+                <MobileLink to="/group-debate" icon={<Users className="w-4 h-4" />} active={isActive("/group-debate")} onClick={() => setMobileOpen(false)}>
+                  Group Debate
+                </MobileLink>
+              )}
 
               {user && (
                 <MobileLink to="/create-agent" icon={<Plus className="w-4 h-4" />} active={isActive("/create-agent")} onClick={() => setMobileOpen(false)}>

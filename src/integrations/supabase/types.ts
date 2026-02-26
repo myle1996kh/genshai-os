@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_memories: {
+        Row: {
+          agent_id: string
+          content: string
+          created_at: string
+          id: string
+          importance_score: number
+          memory_type: string
+          source_conversation_id: string | null
+          updated_at: string
+          user_id: string | null
+          user_session: string | null
+        }
+        Insert: {
+          agent_id: string
+          content: string
+          created_at?: string
+          id?: string
+          importance_score?: number
+          memory_type?: string
+          source_conversation_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_session?: string | null
+        }
+        Update: {
+          agent_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          importance_score?: number
+          memory_type?: string
+          source_conversation_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+          user_session?: string | null
+        }
+        Relationships: []
+      }
       ai_provider_models: {
         Row: {
           fetched_at: string
@@ -181,6 +220,121 @@ export type Database = {
           slug?: string
           tagline?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      group_messages: {
+        Row: {
+          agent_id: string | null
+          agent_name: string | null
+          content: string
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          turn_number: number
+        }
+        Insert: {
+          agent_id?: string | null
+          agent_name?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          role?: string
+          session_id: string
+          turn_number?: number
+        }
+        Update: {
+          agent_id?: string | null
+          agent_name?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          turn_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "group_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_session_agents: {
+        Row: {
+          agent_id: string
+          agent_image: string | null
+          agent_name: string
+          created_at: string
+          id: string
+          session_id: string
+          turn_order: number
+        }
+        Insert: {
+          agent_id: string
+          agent_image?: string | null
+          agent_name: string
+          created_at?: string
+          id?: string
+          session_id: string
+          turn_order?: number
+        }
+        Update: {
+          agent_id?: string
+          agent_image?: string | null
+          agent_name?: string
+          created_at?: string
+          id?: string
+          session_id?: string
+          turn_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_session_agents_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "group_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_sessions: {
+        Row: {
+          created_at: string
+          current_turn: number
+          id: string
+          max_turns: number
+          status: string
+          topic: string
+          updated_at: string
+          user_id: string | null
+          user_session: string
+        }
+        Insert: {
+          created_at?: string
+          current_turn?: number
+          id?: string
+          max_turns?: number
+          status?: string
+          topic: string
+          updated_at?: string
+          user_id?: string | null
+          user_session: string
+        }
+        Update: {
+          created_at?: string
+          current_turn?: number
+          id?: string
+          max_turns?: number
+          status?: string
+          topic?: string
+          updated_at?: string
+          user_id?: string | null
+          user_session?: string
         }
         Relationships: []
       }
