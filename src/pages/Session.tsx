@@ -296,8 +296,8 @@ function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange
 
   return (
     <>
-      <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-      <div className="relative z-40">
+      <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+      <div className="relative z-[9999]">
         <button
           onClick={() => setOpen(false)}
           className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass border border-gold/35 transition-colors flex-shrink-0 max-w-[160px]"
