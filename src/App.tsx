@@ -77,6 +77,14 @@ const AppLayout = () => {
           }
         />
         <Route
+          path="/group-debate/:sessionId"
+          element={
+            <ProtectedRoute>
+              <GroupDebate />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sessions"
           element={
             <ProtectedRoute>
