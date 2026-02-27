@@ -1,0 +1,2 @@
+ALTER TABLE public.knowledge_sources DROP CONSTRAINT knowledge_sources_source_type_check;
+ALTER TABLE public.knowledge_sources ADD CONSTRAINT knowledge_sources_source_type_check CHECK (source_type = ANY (ARRAY['pdf'::text, 'wikipedia'::text, 'url'::text, 'text'::text, 'youtube'::text]));
