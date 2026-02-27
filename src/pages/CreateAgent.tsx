@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Brain, Heart, Cpu, Zap, MessageSquare, BookOpen, History,
   ChevronRight, ChevronLeft, Save, ArrowLeft, Eye, EyeOff, Loader2,
-  Sparkles, Wand2, X, ImagePlus, RefreshCw
+  Sparkles, Wand2, X, ImagePlus, RefreshCw, Send, Bot,
 } from "lucide-react";
 
 const LAYERS = [
@@ -38,6 +38,160 @@ const DEFAULT_FORM: AgentForm = {
 
 function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+// ─── Test Playground ────────────────────────────────────────────────────────
+function TestPlayground({ form, onClose }: { form: AgentForm; onClose: () => void }) {
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const buildSystemPrompt = () => {
+    const layers = LAYERS.map(l => {
+      const val = (form as any)[l.key];
+      return val ? `${l.title}: ${val}` : null;
+    }).filter(Boolean).join("\n\n");
+
+    return `You are ${form.name}. ${form.tagline || ""}\nEra: ${form.era || "Unknown"}\nDomain: ${form.domain}\n\nCognitive Blueprint:\n${layers}\n\nStay fully in character. Respond as this person would, using their voice, reasoning patterns, and mental models.`;
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput("");
+    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setLoading(true);
+
+    try {
+      const systemPrompt = buildSystemPrompt();
+
+      const edgeRes = await fetch(`${SUPABASE_URL}/functions/v1/agent-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({
+          agentId: "__test__",
+          userMessage: userMsg,
+          systemPromptOverride: systemPrompt,
+          messageHistory: messages,
+          skipPersistence: true,
+        }),
+      });
+
+      if (!edgeRes.ok) throw new Error("Chat failed");
+
+      // Read streamed response
+      const reader = edgeRes.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = "";
+
+      setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                fullContent += content;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { role: "assistant", content: fullContent };
+                  return updated;
+                });
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      setMessages(prev => [...prev, { role: "assistant", content: "⚠️ Test chat error. Make sure the agent has at least some layers filled." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+      <div className="glass-strong rounded-2xl border border-primary/20 w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between p-4 border-b border-border/50">
+          <div className="flex items-center gap-2">
+            <Bot className="w-5 h-5 text-primary" />
+            <h2 className="font-display text-lg text-foreground">Test: {form.name || "Agent"}</h2>
+            <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full">Preview</span>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg glass flex items-center justify-center hover:border-border transition-colors border border-transparent">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {messages.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground/40">
+              <Bot className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">Send a message to test your agent's personality</p>
+              {form.conversation_starters.filter(s => s.trim()).length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {form.conversation_starters.filter(s => s.trim()).map((s, i) => (
+                    <button key={i} onClick={() => { setInput(s); }}
+                      className="block mx-auto text-xs text-primary/60 hover:text-primary border border-primary/15 hover:border-primary/30 rounded-lg px-3 py-1.5 transition-colors">
+                      "{s}"
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+                msg.role === "user"
+                  ? "bg-primary text-primary-foreground"
+                  : "glass border border-border/30 text-foreground"
+              }`}>
+                {msg.content || (loading && i === messages.length - 1 ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Thinking...
+                  </div>
+                ) : null)}
+              </div>
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t border-border/50">
+          <div className="flex gap-2">
+            <input type="text" value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && sendMessage()}
+              placeholder="Test your agent..."
+              className="flex-1 glass rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 border border-border focus:border-primary/40 outline-none" />
+            <button onClick={sendMessage} disabled={!input.trim() || loading}
+              className="px-4 py-2.5 rounded-xl gradient-gold text-primary-foreground disabled:opacity-40">
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Auto-Generate Modal ──────────────────────────────────────────────────────
@@ -75,7 +229,7 @@ function AutoGenerateModal({ onClose, onApply }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-      <div className="glass-strong rounded-2xl border border-gold/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div className="glass-strong rounded-2xl border border-primary/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-border/50">
           <div className="flex items-center gap-2">
             <Wand2 className="w-5 h-5 text-primary" />
@@ -93,7 +247,7 @@ function AutoGenerateModal({ onClose, onApply }: {
               {[{ val: "person", label: "Person / Thinker" }, { val: "book", label: "Book / Author" }].map(opt => (
                 <button key={opt.val} onClick={() => setInputType(opt.val as any)}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
-                    inputType === opt.val ? "gradient-gold text-obsidian border-transparent" : "glass border-border text-muted-foreground hover:text-foreground"
+                    inputType === opt.val ? "gradient-gold text-primary-foreground border-transparent" : "glass border-border text-muted-foreground hover:text-foreground"
                   }`}>
                   {opt.label}
                 </button>
@@ -118,7 +272,7 @@ function AutoGenerateModal({ onClose, onApply }: {
           </div>
 
           <button onClick={generate} disabled={generating || !inputName.trim()}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-gold text-obsidian font-semibold text-sm disabled:opacity-40">
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm disabled:opacity-40">
             {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating blueprint with AI...</> : <><Sparkles className="w-4 h-4" />Generate 7-Layer Cognitive OS</>}
           </button>
 
@@ -144,7 +298,7 @@ function AutoGenerateModal({ onClose, onApply }: {
                 <div className="text-xs text-muted-foreground italic">"{preview.tagline}"</div>
               </div>
               <button onClick={() => onApply(preview)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-gold text-obsidian font-semibold text-sm">
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm">
                 <ChevronRight className="w-4 h-4" />
                 Apply This Blueprint
               </button>
@@ -169,12 +323,12 @@ export default function CreateAgent() {
   const [form, setForm] = useState<AgentForm>(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
   const [showAutoGenerate, setShowAutoGenerate] = useState(false);
+  const [showTestPlayground, setShowTestPlayground] = useState(false);
   const isEditing = !!agentId;
 
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate("/login"); return; }
-    // All logged-in users can create agents; no subscription required
     setHasAccess(true);
     supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin")
       .then(({ data }) => setIsAdmin(!!(data && data.length > 0)));
@@ -268,7 +422,6 @@ export default function CreateAgent() {
     } finally { setSaving(false); }
   };
 
-  // Show spinner only while auth is still resolving (hasAccess set almost immediately after)
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -287,6 +440,9 @@ export default function CreateAgent() {
       {showAutoGenerate && (
         <AutoGenerateModal onClose={() => setShowAutoGenerate(false)} onApply={applyBlueprint} />
       )}
+      {showTestPlayground && (
+        <TestPlayground form={form} onClose={() => setShowTestPlayground(false)} />
+      )}
       <div className="pt-24 pb-20 px-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-3 mb-8">
@@ -297,13 +453,23 @@ export default function CreateAgent() {
               <span className="os-tag inline-block mb-1">Cognitive OS Builder</span>
               <h1 className="font-display text-2xl text-foreground">{isEditing ? `Edit: ${form.name || "Agent"}` : "Create New Agent"}</h1>
             </div>
-            {!isEditing && (
-              <button onClick={() => setShowAutoGenerate(true)}
-                className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/10 transition-colors text-sm font-medium">
-                <Wand2 className="w-4 h-4" />
-                Auto-Generate with AI
-              </button>
-            )}
+            <div className="ml-auto flex gap-2">
+              {/* Test Playground button */}
+              {form.name && completedLayers >= 1 && (
+                <button onClick={() => setShowTestPlayground(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-colors text-sm font-medium">
+                  <Bot className="w-4 h-4" />
+                  Test Chat
+                </button>
+              )}
+              {!isEditing && (
+                <button onClick={() => setShowAutoGenerate(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 text-primary hover:bg-primary/10 transition-colors text-sm font-medium">
+                  <Wand2 className="w-4 h-4" />
+                  Auto-Generate with AI
+                </button>
+              )}
+            </div>
           </div>
 
           {showBasic ? (
@@ -435,7 +601,7 @@ function BasicInfoStep({ form, setField, setStarter, onNext }: {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Generation failed");
       setField("image_url", data.imageUrl);
-      toast({ title: "Portrait generated!", description: "AI-painted portrait ready. You can regenerate or enter a URL manually." });
+      toast({ title: "Portrait generated!", description: "AI-painted portrait ready." });
     } catch (e: any) {
       toast({ title: "Generation failed", description: e.message, variant: "destructive" });
     } finally {
@@ -466,11 +632,10 @@ function BasicInfoStep({ form, setField, setStarter, onNext }: {
               className="w-full glass rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 border border-border focus:border-primary/50 outline-none transition-colors" />
           </div>
 
-          {/* Profile Image — with AI generation */}
+          {/* Profile Image */}
           <div className="md:col-span-2 space-y-3">
             <label className="text-xs text-muted-foreground mb-1.5 block">Profile Image</label>
             <div className="flex gap-3 items-start">
-              {/* Preview */}
               <div className="flex-shrink-0 w-20 h-20 rounded-xl border border-border overflow-hidden bg-muted flex items-center justify-center">
                 {form.image_url ? (
                   <img src={form.image_url} alt="Preview" className="w-full h-full object-cover object-top" />
@@ -481,12 +646,8 @@ function BasicInfoStep({ form, setField, setStarter, onNext }: {
               <div className="flex-1 space-y-2">
                 <input type="url" value={form.image_url} onChange={e => setField("image_url", e.target.value)} placeholder="https://... (or generate below)"
                   className="w-full glass rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 border border-border focus:border-primary/50 outline-none transition-colors" />
-                <button
-                  type="button"
-                  onClick={generateImage}
-                  disabled={generatingImage || !form.name.trim()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/30 text-primary hover:bg-primary/10 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                >
+                <button type="button" onClick={generateImage} disabled={generatingImage || !form.name.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/30 text-primary hover:bg-primary/10 transition-colors text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed">
                   {generatingImage ? (
                     <><Loader2 className="w-3.5 h-3.5 animate-spin" />Painting portrait with AI...</>
                   ) : form.image_url ? (
@@ -524,7 +685,7 @@ function BasicInfoStep({ form, setField, setStarter, onNext }: {
       </div>
 
       <button onClick={onNext} disabled={!canNext}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-gold text-obsidian font-semibold text-sm disabled:opacity-40">
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm disabled:opacity-40">
         Continue to Cognitive Layers <ChevronRight className="w-4 h-4" />
       </button>
     </div>
