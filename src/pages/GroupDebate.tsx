@@ -115,9 +115,8 @@ export default function GroupDebate() {
         turnNumber: 0,
       }]);
       setStep("debate");
-
-      // Auto-start first turn
-      setTimeout(() => runNextTurn(data.sessionId), 500);
+      setIsPaused(true);
+      pauseRef.current = true;
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -205,11 +204,8 @@ export default function GroupDebate() {
       }
 
       setIsStreaming(false);
-
-      // Auto-advance if not paused — with 3s delay to avoid rate limits
-      if (!pauseRef.current && !isComplete) {
-        setTimeout(() => runNextTurn(id), 3000);
-      }
+      pauseRef.current = true;
+      setIsPaused(true);
     } catch (e: any) {
       setIsStreaming(false);
       // On rate limit, pause and notify
@@ -340,28 +336,18 @@ export default function GroupDebate() {
           <span className="text-xs text-muted-foreground truncate hidden sm:block">— {topic}</span>
         </div>
         <div className="flex items-center gap-2">
-          {!isComplete && (
-            <>
-              <button
-                onClick={handlePause}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  isPaused
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                {isPaused ? "Resume" : "Pause"}
-              </button>
-              {isPaused && !isStreaming && (
-                <button
-                  onClick={() => runNextTurn()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary"
-                >
-                  <SkipForward className="w-3 h-3" /> Next Turn
-                </button>
-              )}
-            </>
+          {!isComplete && !isStreaming && (
+            <button
+              onClick={() => runNextTurn()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+            >
+              <SkipForward className="w-3 h-3" /> Next Turn
+            </button>
+          )}
+          {isStreaming && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" /> Agent speaking...
+            </span>
           )}
           {isComplete && (
             <span className="text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-lg font-medium">
@@ -440,8 +426,8 @@ export default function GroupDebate() {
             value={userInput}
             onChange={e => setUserInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleUserInterject()}
-            placeholder={isComplete ? "Debate is complete" : isPaused ? "Type to interject..." : "Pause the debate to interject..."}
-            disabled={isComplete || (!isPaused && isStreaming)}
+            placeholder={isComplete ? "Debate is complete" : isStreaming ? "Wait for agent to finish..." : "Type your message to join the conversation..."}
+            disabled={isComplete || isStreaming}
             className="flex-1 glass rounded-xl px-4 py-2.5 text-sm text-foreground border border-border focus:border-primary/50 outline-none disabled:opacity-50"
           />
           <button
