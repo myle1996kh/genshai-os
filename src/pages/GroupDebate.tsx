@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Users, Send, Play, Pause, SkipForward, MessageSquare, Loader2 } from "lucide-react";
 import { agents } from "@/data/agents";
 import { AgentMarkdown } from "@/components/chat/AgentMarkdown";
@@ -31,16 +31,18 @@ interface DebateMessage {
 export default function GroupDebate() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState<"setup" | "debate">("setup");
+  const { sessionId: routeSessionId } = useParams<{ sessionId?: string }>();
+  const [step, setStep] = useState<"setup" | "debate">(routeSessionId ? "debate" : "setup");
   const [topic, setTopic] = useState("");
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(routeSessionId || null);
   const [messages, setMessages] = useState<DebateMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [userInput, setUserInput] = useState("");
   const [customAgents, setCustomAgents] = useState<any[]>([]);
+  const [loadingSession, setLoadingSession] = useState(!!routeSessionId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pauseRef = useRef(false);
 
@@ -59,6 +61,68 @@ export default function GroupDebate() {
     };
     fetchCustom();
   }, []);
+
+  // Load existing session from route param
+  useEffect(() => {
+    if (!routeSessionId) return;
+    const loadSession = async () => {
+      setLoadingSession(true);
+      try {
+        // Fetch session info
+        const { data: sessionData } = await supabase
+          .from("group_sessions")
+          .select("*")
+          .eq("id", routeSessionId)
+          .maybeSingle();
+
+        if (!sessionData) {
+          toast.error("Debate session not found");
+          navigate("/sessions");
+          return;
+        }
+
+        setTopic(sessionData.topic);
+        setIsComplete(sessionData.status === "completed");
+        setIsPaused(true);
+        pauseRef.current = true;
+
+        // Fetch messages
+        const { data: msgs } = await supabase
+          .from("group_messages")
+          .select("*")
+          .eq("session_id", routeSessionId)
+          .order("created_at", { ascending: true });
+
+        const loadedMessages: DebateMessage[] = [
+          {
+            id: "system-0",
+            agentId: null,
+            agentName: null,
+            role: "system",
+            content: `**Debate Topic:** ${sessionData.topic}`,
+            turnNumber: 0,
+          },
+          ...(msgs || []).map((m) => ({
+            id: m.id,
+            agentId: m.agent_id,
+            agentName: m.agent_name,
+            role: m.role as "user" | "assistant" | "system",
+            content: m.content,
+            turnNumber: m.turn_number,
+          })),
+        ];
+
+        setMessages(loadedMessages);
+        setStep("debate");
+      } catch (e: any) {
+        toast.error("Failed to load debate session");
+        navigate("/sessions");
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+    loadSession();
+  }, [routeSessionId]);
 
   const allAgents = [
     ...agents.map(a => ({ id: a.id, name: a.name, image: a.image, accentColor: a.accentColor })),
@@ -317,6 +381,18 @@ export default function GroupDebate() {
           >
             <Play className="w-4 h-4" /> Start Debate
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── LOADING EXISTING SESSION ─────────────────────────────────────────
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Loading debate session...</span>
         </div>
       </div>
     );

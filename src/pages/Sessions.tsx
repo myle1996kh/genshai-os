@@ -298,7 +298,10 @@ const Sessions = () => {
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <Users className="w-5 h-5 text-primary/70" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <Link
+                  to={`/group-debate/${debate.id}`}
+                  className="flex-1 min-w-0 cursor-pointer"
+                >
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-cream truncate">{debate.topic}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
@@ -320,7 +323,7 @@ const Sessions = () => {
                   <span className="text-[11px] text-cream-dim/30 mt-0.5 block">
                     Turn {debate.current_turn}/{debate.max_turns}
                   </span>
-                </div>
+                </Link>
                 <button
                   onClick={() => deleteDebate(debate.id)}
                   disabled={deleting === debate.id}
