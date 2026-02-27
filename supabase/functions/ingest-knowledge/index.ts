@@ -278,10 +278,31 @@ Return as JSON:
       throw new Error(`AI error: ${status}`);
     }
 
-    const aiData = await aiRes.json();
-    let rawContent = aiData.choices[0].message.content;
-    rawContent = rawContent.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
-    const extracted = JSON.parse(rawContent);
+    const aiText = await aiRes.text();
+    let aiData;
+    try {
+      aiData = JSON.parse(aiText);
+    } catch (parseErr) {
+      console.error("Failed to parse AI gateway response:", aiText.slice(0, 300));
+      throw new Error("AI gateway returned invalid JSON response");
+    }
+    
+    let rawContent = aiData.choices?.[0]?.message?.content;
+    if (!rawContent) {
+      console.error("No content in AI response:", JSON.stringify(aiData).slice(0, 300));
+      throw new Error("AI returned empty content");
+    }
+    
+    // Strip markdown code fences and any leading/trailing whitespace
+    rawContent = rawContent.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    
+    let extracted;
+    try {
+      extracted = JSON.parse(rawContent);
+    } catch (parseErr) {
+      console.error("Failed to parse extracted content:", rawContent.slice(0, 300));
+      throw new Error("AI returned malformed JSON in content");
+    }
 
     if (sourceId) {
       await supabase
