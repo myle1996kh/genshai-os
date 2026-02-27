@@ -129,6 +129,7 @@ export type Database = {
           agent_id: string
           created_at: string
           id: string
+          is_favorite: boolean
           updated_at: string
           user_id: string | null
           user_session: string
@@ -137,6 +138,7 @@ export type Database = {
           agent_id: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           updated_at?: string
           user_id?: string | null
           user_session: string
@@ -145,6 +147,7 @@ export type Database = {
           agent_id?: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           updated_at?: string
           user_id?: string | null
           user_session?: string
@@ -307,6 +310,7 @@ export type Database = {
           created_at: string
           current_turn: number
           id: string
+          is_favorite: boolean
           max_turns: number
           status: string
           topic: string
@@ -318,6 +322,7 @@ export type Database = {
           created_at?: string
           current_turn?: number
           id?: string
+          is_favorite?: boolean
           max_turns?: number
           status?: string
           topic: string
@@ -329,6 +334,7 @@ export type Database = {
           created_at?: string
           current_turn?: number
           id?: string
+          is_favorite?: boolean
           max_turns?: number
           status?: string
           topic?: string
