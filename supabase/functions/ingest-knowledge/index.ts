@@ -6,12 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Fetch plain text from a URL (for web pages, Gutenberg, etc.)
 async function fetchUrlContent(url: string): Promise<string> {
   try {
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; CognitiveOS/1.0)" } });
     const html = await res.text();
-    // Strip HTML tags and collapse whitespace
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -26,32 +24,110 @@ async function fetchUrlContent(url: string): Promise<string> {
   }
 }
 
-// Fetch YouTube transcript via Invidious API (no API key required)
 async function fetchYoutubeTranscript(videoId: string): Promise<string> {
+  // Method 1: Try fetching from YouTube's timedtext API directly
+  try {
+    const watchRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: { 
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+    const watchHtml = await watchRes.text();
+    
+    // Extract captions URL from the page
+    const captionsMatch = watchHtml.match(/"captions":\s*(\{.*?"playerCaptionsTracklistRenderer".*?\})\s*,\s*"/s);
+    if (captionsMatch) {
+      try {
+        // Find caption URLs in the raw text
+        const captionUrlMatch = watchHtml.match(/"baseUrl":"(https:\/\/www\.youtube\.com\/api\/timedtext[^"]+)"/);
+        if (captionUrlMatch) {
+          let captionUrl = captionUrlMatch[1].replace(/\\u0026/g, "&");
+          // Ensure we get English if possible
+          if (!captionUrl.includes("lang=en")) {
+            captionUrl = captionUrl.replace(/lang=[^&]+/, "lang=en");
+          }
+          // Request plain text format
+          captionUrl += "&fmt=srv3";
+          
+          const captionRes = await fetch(captionUrl, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+          });
+          if (captionRes.ok) {
+            const captionXml = await captionRes.text();
+            // Parse XML captions - extract text from <text> elements
+            const transcript = captionXml
+              .replace(/<\/text>/g, "\n")
+              .replace(/<text[^>]*>/g, "")
+              .replace(/<[^>]+>/g, "")
+              .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+              .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+              .replace(/\n{2,}/g, "\n")
+              .trim();
+            if (transcript.length > 100) {
+              console.log(`Got transcript via YouTube timedtext API (${transcript.length} chars)`);
+              return transcript.slice(0, 10000);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing captions from YouTube page:", e);
+      }
+    }
+    
+    // Extract video info from the page as fallback context
+    const titleMatch = watchHtml.match(/<meta name="title" content="([^"]+)"/);
+    const descMatch = watchHtml.match(/<meta name="description" content="([^"]+)"/);
+    const title = titleMatch?.[1] || "";
+    const description = descMatch?.[1] || "";
+    
+    if (title || description) {
+      console.log("Got video metadata as fallback context");
+      // Don't return yet - try Invidious first
+    }
+  } catch (e) {
+    console.error("YouTube direct fetch error:", e);
+  }
+
+  // Method 2: Try Invidious instances
   const instances = [
     "https://inv.tux.pizza",
-    "https://invidious.fdn.fr",
+    "https://invidious.fdn.fr", 
     "https://invidious.privacydev.net",
+    "https://vid.puffyan.us",
+    "https://invidious.lunar.icu",
   ];
+  
   for (const base of instances) {
     try {
+      console.log(`Trying Invidious instance: ${base}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      
       const res = await fetch(`${base}/api/v1/captions/${videoId}`, {
         headers: { "User-Agent": "Mozilla/5.0" },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+      
       if (!res.ok) continue;
       const data = await res.json();
-      // Find English captions
+      
       const cap = data.captions?.find((c: any) =>
         c.languageCode?.startsWith("en") || c.label?.toLowerCase().includes("english")
       ) || data.captions?.[0];
       if (!cap) continue;
 
-      // Fetch the VTT/SRT
-      const captionRes = await fetch(`${base}${cap.url}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+      const captionController = new AbortController();
+      const captionTimeout = setTimeout(() => captionController.abort(), 8000);
+      const captionRes = await fetch(`${base}${cap.url}`, { 
+        headers: { "User-Agent": "Mozilla/5.0" },
+        signal: captionController.signal,
+      });
+      clearTimeout(captionTimeout);
       if (!captionRes.ok) continue;
       const captionText = await captionRes.text();
 
-      // Strip VTT/SRT timestamps and tags
       const transcript = captionText
         .replace(/WEBVTT\n*/i, "")
         .replace(/\d+:\d+:\d+\.\d+ --> .+/g, "")
@@ -60,18 +136,23 @@ async function fetchYoutubeTranscript(videoId: string): Promise<string> {
         .replace(/\n{2,}/g, "\n")
         .trim();
 
-      if (transcript.length > 100) return transcript.slice(0, 10000);
-    } catch {
+      if (transcript.length > 100) {
+        console.log(`Got transcript via Invidious ${base} (${transcript.length} chars)`);
+        return transcript.slice(0, 10000);
+      }
+    } catch (e) {
+      console.error(`Invidious ${base} failed:`, e instanceof Error ? e.message : e);
       continue;
     }
   }
 
-  // Fallback: fetch video info as context
+  // Method 3: Use AI to summarize from video metadata
   try {
-    const infoRes = await fetch(`https://inv.tux.pizza/api/v1/videos/${videoId}`);
+    const infoRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
     if (infoRes.ok) {
       const info = await infoRes.json();
-      return `Title: ${info.title}\nAuthor: ${info.author}\nDescription: ${info.description?.slice(0, 3000) || ""}`;
+      console.log("Using oEmbed video info as fallback");
+      return `Video Title: ${info.title}\nAuthor: ${info.author_name}\n\n[Transcript unavailable - using video metadata for knowledge extraction]`;
     }
   } catch {}
 
@@ -119,12 +200,14 @@ serve(async (req) => {
     if (sourceType === "youtube" && url) {
       const ytMatch = url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
       if (ytMatch) {
+        console.log(`Processing YouTube video: ${ytMatch[1]}`);
         contentToProcess = await fetchYoutubeTranscript(ytMatch[1]);
         if (!contentToProcess) {
-          return new Response(JSON.stringify({ error: "Could not fetch transcript. The video may not have captions." }), {
+          return new Response(JSON.stringify({ error: "Could not fetch transcript. The video may not have captions or may be restricted." }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+        console.log(`YouTube content length: ${contentToProcess.length}`);
       }
     }
 
@@ -200,7 +283,6 @@ Return as JSON:
     rawContent = rawContent.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
     const extracted = JSON.parse(rawContent);
 
-    // Update the knowledge source record
     if (sourceId) {
       await supabase
         .from("knowledge_sources")
