@@ -340,7 +340,8 @@ Example: > 💡 This is an insight callout
         .single();
 
       if (provider?.is_active && provider?.is_verified) {
-        apiUrl = `${provider.base_url.replace(/\/+$/, "")}/chat/completions`;
+        // Use base_url as-is, don't append /chat/completions
+        apiUrl = provider.base_url.replace(/\/+$/, "");
         apiKey = provider.api_key;
         resolvedModel = model;
         console.log(`Routing to external provider: ${apiUrl}, model: ${model}`);
