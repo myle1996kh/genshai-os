@@ -353,8 +353,8 @@ Example: > 💡 This is an insight callout
       console.warn(`Invalid model "${model}" without provider, falling back to ${DEFAULT_MODEL}`);
     }
 
-    // Call AI endpoint
-    const aiResponse = await fetch(apiUrl, {
+    // Call AI endpoint (with fallback to Lovable AI if external provider fails)
+    let aiResponse = await fetch(apiUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -366,6 +366,30 @@ Example: > 💡 This is an insight callout
         stream: true,
       }),
     });
+
+    // If external provider fails with auth/server error, fallback to Lovable AI
+    if (!aiResponse.ok && apiUrl !== "https://ai.gateway.lovable.dev/v1/chat/completions") {
+      const fallbackStatus = aiResponse.status;
+      const fallbackBody = await aiResponse.text();
+      console.warn(`External provider failed (${fallbackStatus}): ${fallbackBody.slice(0, 200)}. Falling back to Lovable AI.`);
+      
+      apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+      apiKey = LOVABLE_API_KEY;
+      resolvedModel = DEFAULT_MODEL;
+
+      aiResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: resolvedModel,
+          messages: aiMessages,
+          stream: true,
+        }),
+      });
+    }
 
     if (!aiResponse.ok) {
       const status = aiResponse.status;
