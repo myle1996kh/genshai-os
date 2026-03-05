@@ -566,6 +566,7 @@ const Session = () => {
           userId: user?.id || null,
           model: selectedModel.id,
           providerId: selectedModel.providerId || null,
+          activeConnections: activeMcpIds.length > 0 ? activeMcpIds : undefined,
           // Pass custom agent's cognitive layers if available
           customSystemPrompt: customAgent ? buildCustomSystemPrompt(customAgent) : undefined,
         }),
