@@ -434,6 +434,7 @@ const Session = () => {
     label: "Gemini 2.5 Flash (default)",
   });
   const [activeMcpIds, setActiveMcpIds] = useState<string[]>([]);
+  const [mcpRefreshKey, setMcpRefreshKey] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
