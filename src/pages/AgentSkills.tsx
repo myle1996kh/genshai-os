@@ -272,8 +272,8 @@ const AgentSkills = () => {
                     <div className="text-xs text-gold/60 mt-1">Auth: {conn.auth_type}</div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <span className="text-xs text-green-500">Active</span>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-xs text-emerald-500">Active</span>
                   </div>
                 </Card>
               ))}
