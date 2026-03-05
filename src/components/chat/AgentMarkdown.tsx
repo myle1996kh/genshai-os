@@ -145,10 +145,11 @@ export const AgentMarkdown = memo(({ content }: AgentMarkdownProps) => {
   }, [content]);
 
   // Pre-extract chart, mermaid, image blocks — replace with placeholders
-  const { processedContent, charts, mermaidDiagrams, images } = useMemo(() => {
+  const { processedContent, charts, mermaidDiagrams, images, mcpEvents } = useMemo(() => {
     const chartBlocks: ChartData[] = [];
     const mermaidBlocks: { chart: string; title?: string }[] = [];
     const imageBlocks: { prompt: string; caption?: string }[] = [];
+    const mcpEventBlocks: any[] = [];
 
     let processed = cleanContent
       // chart blocks
@@ -173,9 +174,18 @@ export const AgentMarkdown = memo(({ content }: AgentMarkdownProps) => {
         } catch {
           return `\`\`\`\n${json}\`\`\``;
         }
+      })
+      // mcp-event blocks
+      .replace(/```mcp-event\n([\s\S]*?)```/g, (_, json) => {
+        try {
+          mcpEventBlocks.push(JSON.parse(json.trim()));
+          return `\n<!--mcpevent-${mcpEventBlocks.length - 1}-->\n`;
+        } catch {
+          return "";
+        }
       });
 
-    return { processedContent: processed, charts: chartBlocks, mermaidDiagrams: mermaidBlocks, images: imageBlocks };
+    return { processedContent: processed, charts: chartBlocks, mermaidDiagrams: mermaidBlocks, images: imageBlocks, mcpEvents: mcpEventBlocks };
   }, [cleanContent]);
 
   // Split by placeholders for rendering
