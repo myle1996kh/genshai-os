@@ -64,19 +64,25 @@ const KnowledgeIngestion = () => {
       .maybeSingle().then(({ data }) => { if (data) setCustomAgent(data as CustomAgent); setAgentLoading(false); });
   }, [agentId, staticAgent]);
 
-  // Fetch existing sources
+  // Fetch existing sources + MCP connections
   useEffect(() => {
     if (!agentId) return;
     setSourcesLoading(true);
-    supabase
-      .from("knowledge_sources")
-      .select("id, title, source_type, status, created_at, mental_models, reasoning_patterns")
-      .eq("agent_id", agentId)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setSources((data || []) as KnowledgeSource[]);
-        setSourcesLoading(false);
-      });
+    Promise.all([
+      supabase
+        .from("knowledge_sources")
+        .select("id, title, source_type, status, created_at, mental_models, reasoning_patterns")
+        .eq("agent_id", agentId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("mcp_connections")
+        .select("id, name, server_url, auth_type, is_active")
+        .eq("is_active", true),
+    ]).then(([sourcesRes, mcpRes]) => {
+      setSources((sourcesRes.data || []) as KnowledgeSource[]);
+      setExistingConnections(mcpRes.data || []);
+      setSourcesLoading(false);
+    });
   }, [agentId]);
 
   const agent = staticAgent
