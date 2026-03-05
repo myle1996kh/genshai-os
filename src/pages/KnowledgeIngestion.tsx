@@ -98,6 +98,16 @@ const KnowledgeIngestion = () => {
   const [autoSources, setAutoSources] = useState<string[]>(["wikipedia"]);
   const [autoResults, setAutoResults] = useState<any[]>([]);
 
+  // MCP state
+  const [mcpName, setMcpName] = useState("");
+  const [mcpUrl, setMcpUrl] = useState("");
+  const [mcpAuthType, setMcpAuthType] = useState<"none" | "bearer" | "api_key">("none");
+  const [mcpToken, setMcpToken] = useState("");
+  const [mcpHeaderName, setMcpHeaderName] = useState("X-API-Key");
+  const [mcpDiscoveredTools, setMcpDiscoveredTools] = useState<any[]>([]);
+  const [mcpConnecting, setMcpConnecting] = useState(false);
+  const [existingConnections, setExistingConnections] = useState<any[]>([]);
+
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
