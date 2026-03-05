@@ -276,6 +276,20 @@ Use emoji prefixes in blockquotes for styled callouts:
 - 📖 for references
 
 Example: > 💡 This is an insight callout
+
+## MCP Server Management
+You have built-in tools to manage MCP (Model Context Protocol) connections. MCP allows you to connect to external services and use their tools.
+
+When a user asks to connect to an external service (e.g. "connect to Obsidian", "add my Notion MCP", "connect to filesystem server"):
+1. Ask for the MCP server URL if not provided
+2. Use __mcp_connect to create the connection (tools are auto-discovered)
+3. Confirm what tools were discovered and are now available
+
+When a user asks what MCP connections are available, use __mcp_list.
+When a user asks to refresh or discover tools from a connection, use __mcp_discover_tools.
+When a user asks to disconnect, use __mcp_disconnect.
+
+After connecting, let the user know the tools are ready to use in the chat. The MCP tools will appear in the MCP toggle in the chat header.
 `;
 
     // ─── Persistent Memory + Conversation Summary ─────────────────────
@@ -318,11 +332,170 @@ Example: > 💡 This is an insight callout
       console.warn("Memory/summary fetch failed:", e);
     }
 
+    // ─── Built-in MCP Management Tools ────────────────────────────────
+    const builtinMcpTools = [
+      {
+        type: "function",
+        function: {
+          name: "__mcp_connect",
+          description: "Connect to a new MCP server. Use when the user asks to connect to an external service like Obsidian, Notion, filesystem, etc. via MCP.",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Human-readable name for this connection (e.g. 'My Obsidian', 'Local Files')" },
+              server_url: { type: "string", description: "The MCP server URL (e.g. http://localhost:3000/mcp, https://mcp.example.com)" },
+              auth_type: { type: "string", enum: ["none", "bearer", "api_key"], description: "Authentication type" },
+              auth_token: { type: "string", description: "Bearer token or API key value if auth is required" },
+            },
+            required: ["name", "server_url"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "__mcp_list",
+          description: "List all currently connected MCP servers and their status. Use when the user asks what MCP connections are available.",
+          parameters: { type: "object", properties: {}, required: [] },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "__mcp_discover_tools",
+          description: "Discover available tools from a connected MCP server and register them as agent skills. Use after connecting an MCP server or when the user wants to refresh available tools.",
+          parameters: {
+            type: "object",
+            properties: {
+              connection_id: { type: "string", description: "The MCP connection ID to discover tools from" },
+            },
+            required: ["connection_id"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "__mcp_disconnect",
+          description: "Disconnect/deactivate an MCP server connection. Use when the user wants to remove an MCP connection.",
+          parameters: {
+            type: "object",
+            properties: {
+              connection_id: { type: "string", description: "The MCP connection ID to disconnect" },
+            },
+            required: ["connection_id"],
+          },
+        },
+      },
+    ];
+
+    // Built-in tool executor
+    async function executeBuiltinMcpTool(toolName: string, args: any): Promise<string> {
+      switch (toolName) {
+        case "__mcp_connect": {
+          const authConfig: any = {};
+          if (args.auth_type === "bearer" && args.auth_token) authConfig.token = args.auth_token;
+          if (args.auth_type === "api_key" && args.auth_token) authConfig.api_key = args.auth_token;
+
+          const { data, error } = await supabase.from("mcp_connections").insert({
+            name: args.name,
+            server_url: args.server_url,
+            auth_type: args.auth_type || "none",
+            auth_config: authConfig,
+            created_by: userId || null,
+          }).select("id, name, server_url").single();
+
+          if (error) return JSON.stringify({ error: error.message });
+
+          // Auto-discover tools after connecting
+          let discovered = 0;
+          try {
+            const mcpRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-proxy`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+              body: JSON.stringify({ connectionId: data.id, method: "tools/list", params: {} }),
+            });
+            const mcpData = await mcpRes.json();
+            const tools = mcpData.result?.tools || mcpData.tools || [];
+            for (const tool of tools) {
+              await supabase.from("agent_skills").insert({
+                name: `mcp_${tool.name}`,
+                description: tool.description || tool.name,
+                skill_type: "mcp",
+                mcp_connection_id: data.id,
+                mcp_tool_name: tool.name,
+                tool_schema: tool.inputSchema || { type: "object", properties: {} },
+              });
+              discovered++;
+            }
+            // Auto-assign discovered skills to this agent
+            if (discovered > 0) {
+              const { data: newSkills } = await supabase.from("agent_skills").select("id").eq("mcp_connection_id", data.id);
+              for (const s of (newSkills || [])) {
+                await supabase.from("agent_skill_assignments").insert({ agent_id: agentId, skill_id: s.id }).select();
+              }
+            }
+          } catch (e) {
+            console.warn("Auto-discover after connect failed:", e);
+          }
+
+          return JSON.stringify({ success: true, connection: data, tools_discovered: discovered, message: `Connected to "${args.name}" and discovered ${discovered} tools.` });
+        }
+
+        case "__mcp_list": {
+          const { data } = await supabase.from("mcp_connections").select("id, name, server_url, auth_type, is_active").eq("is_active", true);
+          return JSON.stringify({ connections: data || [], count: (data || []).length });
+        }
+
+        case "__mcp_discover_tools": {
+          const mcpRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-proxy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+            body: JSON.stringify({ connectionId: args.connection_id, method: "tools/list", params: {} }),
+          });
+          const mcpData = await mcpRes.json();
+          if (mcpData.error) return JSON.stringify({ error: mcpData.error });
+
+          const tools = mcpData.result?.tools || mcpData.tools || [];
+          let created = 0;
+          for (const tool of tools) {
+            const skillName = `mcp_${tool.name}`;
+            const { data: existing } = await supabase.from("agent_skills").select("id").eq("mcp_connection_id", args.connection_id).eq("mcp_tool_name", tool.name).maybeSingle();
+            if (!existing) {
+              const { data: newSkill } = await supabase.from("agent_skills").insert({
+                name: skillName, description: tool.description || tool.name, skill_type: "mcp",
+                mcp_connection_id: args.connection_id, mcp_tool_name: tool.name,
+                tool_schema: tool.inputSchema || { type: "object", properties: {} },
+              }).select("id").single();
+              if (newSkill) {
+                await supabase.from("agent_skill_assignments").insert({ agent_id: agentId, skill_id: newSkill.id });
+                created++;
+              }
+            }
+          }
+          return JSON.stringify({ tools_found: tools.length, tools_created: created, tools: tools.map((t: any) => ({ name: t.name, description: t.description })) });
+        }
+
+        case "__mcp_disconnect": {
+          const { error } = await supabase.from("mcp_connections").update({ is_active: false }).eq("id", args.connection_id);
+          if (error) return JSON.stringify({ error: error.message });
+          // Deactivate associated skills
+          const { data: skills } = await supabase.from("agent_skills").select("id").eq("mcp_connection_id", args.connection_id);
+          for (const s of (skills || [])) {
+            await supabase.from("agent_skills").update({ is_active: false }).eq("id", s.id);
+          }
+          return JSON.stringify({ success: true, message: "MCP connection disconnected and associated tools deactivated." });
+        }
+
+        default:
+          return JSON.stringify({ error: "Unknown built-in tool" });
+      }
+    }
+
     // ─── Fetch Agent Skills (Tools) ─────────────────────────────────────
-    let openaiTools: any[] = [];
+    let openaiTools: any[] = [...builtinMcpTools];
     let skillMap: Record<string, any> = {};
     try {
-      // 1. Fetch assigned skills for this agent
       const { data: assignments } = await supabase
         .from("agent_skill_assignments")
         .select("skill_id, config, agent_skills(id, name, description, skill_type, tool_schema, endpoint_url, mcp_connection_id, mcp_tool_name)")
@@ -333,7 +506,6 @@ Example: > 💡 This is an insight callout
         for (const a of assignments) {
           const skill = (a as any).agent_skills;
           if (!skill || !skill.tool_schema) continue;
-          // If this is an MCP skill, only include if its connection is in activeConnections
           if (skill.skill_type === "mcp" && skill.mcp_connection_id) {
             if (!activeConnections || !activeConnections.includes(skill.mcp_connection_id)) continue;
           }
@@ -453,7 +625,10 @@ Example: > 💡 This is an insight callout
             let toolResult = "";
 
             try {
-              if (skill?.skill_type === "mcp" && skill.mcp_connection_id) {
+              // Check if it's a built-in MCP management tool
+              if (fnName.startsWith("__mcp_")) {
+                toolResult = await executeBuiltinMcpTool(fnName, fnArgs);
+              } else if (skill?.skill_type === "mcp" && skill.mcp_connection_id) {
                 // Execute via MCP proxy
                 const mcpRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-proxy`, {
                   method: "POST",

@@ -329,14 +329,25 @@ function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange
 // ─── MCP Toggle ──────────────────────────────────────────────────────────────
 interface McpConnection { id: string; name: string; server_url: string; is_active: boolean; }
 
-function McpToggle({ activeIds, onToggle }: { activeIds: string[]; onToggle: (ids: string[]) => void }) {
+function McpToggle({ activeIds, onToggle, refreshKey }: { activeIds: string[]; onToggle: (ids: string[]) => void; refreshKey?: number }) {
   const [open, setOpen] = useState(false);
   const [connections, setConnections] = useState<McpConnection[]>([]);
 
-  useEffect(() => {
+  const fetchConnections = useCallback(() => {
     supabase.from("mcp_connections").select("id, name, server_url, is_active").eq("is_active", true)
-      .then(({ data }) => setConnections(data || []));
-  }, []);
+      .then(({ data }) => {
+        setConnections(data || []);
+        // Auto-enable newly discovered connections
+        if (data && data.length > 0) {
+          const newIds = data.map(c => c.id).filter(id => !activeIds.includes(id));
+          if (newIds.length > 0 && activeIds.length > 0) {
+            onToggle([...activeIds, ...newIds]);
+          }
+        }
+      });
+  }, [activeIds]);
+
+  useEffect(() => { fetchConnections(); }, [refreshKey]);
 
   if (connections.length === 0) return null;
 
@@ -423,6 +434,7 @@ const Session = () => {
     label: "Gemini 2.5 Flash (default)",
   });
   const [activeMcpIds, setActiveMcpIds] = useState<string[]>([]);
+  const [mcpRefreshKey, setMcpRefreshKey] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -623,6 +635,8 @@ const Session = () => {
       }
     } finally {
       setIsStreaming(false);
+      // Refresh MCP connections in case the AI connected/disconnected MCP servers
+      setMcpRefreshKey(k => k + 1);
     }
   }, [input, agentId, isStreaming, conversationId, userSession, user, customAgent]);
 
@@ -709,7 +723,7 @@ const Session = () => {
         <ModelSwitcher selected={selectedModel} onChange={setSelectedModel} />
 
         {/* MCP Toggle */}
-        <McpToggle activeIds={activeMcpIds} onToggle={setActiveMcpIds} />
+        <McpToggle activeIds={activeMcpIds} onToggle={setActiveMcpIds} refreshKey={mcpRefreshKey} />
 
         <button
           onClick={() => setProfileOpen(true)}
