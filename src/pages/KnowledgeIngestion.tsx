@@ -761,8 +761,10 @@ const KnowledgeIngestion = () => {
             {status !== "success" && (
               <button onClick={handleSubmit} disabled={isSubmitDisabled}
                 className="mt-5 w-full flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                {status === "processing" ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />{activeTab === "auto" ? "Researching sources..." : "Extracting knowledge..."}</>
+                {status === "processing" || mcpConnecting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />{activeTab === "mcp" ? "Connecting & discovering tools..." : activeTab === "auto" ? "Researching sources..." : "Extracting knowledge..."}</>
+                ) : activeTab === "mcp" ? (
+                  <><Server className="w-4 h-4" />Connect MCP Server</>
                 ) : activeTab === "auto" ? (
                   <><Sparkles className="w-4 h-4" />Auto-Research Topic</>
                 ) : (
