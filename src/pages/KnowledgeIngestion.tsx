@@ -4,13 +4,14 @@ import {
   ArrowLeft, BookOpen, Globe, Upload, CheckCircle, AlertCircle,
   Loader2, ChevronRight, FileText, Sparkles, Search, Youtube,
   Link2, Paperclip, X, Brain, Database, Clock, Trash2,
+  Server, Shield, Key, Wifi, WifiOff, Wrench,
 } from "lucide-react";
 import { agents } from "@/data/agents";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import AgentAvatar from "@/components/AgentAvatar";
 
-type SourceType = "wikipedia" | "text" | "auto" | "youtube" | "url" | "file";
+type SourceType = "wikipedia" | "text" | "auto" | "youtube" | "url" | "file" | "mcp";
 
 interface CustomAgent {
   id: string; slug: string; name: string; domain: string; image_url: string | null; accent_color: string | null;
