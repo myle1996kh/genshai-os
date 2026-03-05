@@ -21,10 +21,18 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch conversation messages
+    // ─── Phase 0: Fetch conversation summary + recent messages ─────────
+    const { data: existingSummary } = await supabase
+      .from("conversation_summaries")
+      .select("summary, message_count")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const { data: messages } = await supabase
       .from("messages")
-      .select("role, content")
+      .select("role, content, created_at")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true })
       .limit(50);
@@ -35,48 +43,98 @@ serve(async (req) => {
       });
     }
 
-    // Check existing memories to avoid duplicates
+    // Use last N messages since last summary
+    const summarizedCount = existingSummary?.message_count || 0;
+    const newMessages = messages.slice(summarizedCount);
+    if (newMessages.length < 2 && existingSummary) {
+      return new Response(JSON.stringify({ extracted: 0, reason: "no new messages since last summary" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const messagesToProcess = newMessages.length >= 2 ? newMessages : messages;
+
+    // ─── Phase 1: Summarize conversation ───────────────────────────────
+    const conversationText = messagesToProcess
+      .map((m: any) => `${m.role === "user" ? "User" : "Agent"}: ${m.content}`)
+      .join("\n\n");
+
+    const summaryInput = existingSummary?.summary
+      ? `Previous summary:\n${existingSummary.summary}\n\nNew messages:\n${conversationText}`
+      : conversationText;
+
+    const summaryResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content: `Summarize this conversation concisely (max 300 words). Focus on: key topics discussed, user's situation, decisions made, emotional tone. ${existingSummary?.summary ? "Integrate with the previous summary." : ""}`,
+          },
+          { role: "user", content: summaryInput },
+        ],
+      }),
+    });
+
+    if (summaryResponse.ok) {
+      const summaryData = await summaryResponse.json();
+      const summary = summaryData.choices?.[0]?.message?.content?.trim();
+      if (summary) {
+        await supabase.from("conversation_summaries").upsert(
+          {
+            conversation_id: conversationId,
+            summary,
+            message_count: messages.length,
+            last_summarized_at: new Date().toISOString(),
+          },
+          { onConflict: "conversation_id" }
+        );
+      }
+    }
+
+    // ─── Phase 2: Extract new memories ─────────────────────────────────
     const memoryFilter = userId
       ? { agent_id: agentId, user_id: userId }
       : { agent_id: agentId, user_session: userSession };
 
     const { data: existingMemories } = await supabase
       .from("agent_memories")
-      .select("content")
+      .select("id, content, memory_type, importance_score")
       .match(memoryFilter)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(30);
 
-    const existingSummary = (existingMemories || []).map(m => m.content).join("\n");
+    const existingMemoriesList = (existingMemories || [])
+      .map((m, i) => `[${i}] (${m.memory_type}, score:${m.importance_score}) ${m.content}`)
+      .join("\n");
 
-    // Use AI to extract memories
-    const conversationText = messages
-      .map((m: any) => `${m.role === "user" ? "User" : "Agent"}: ${m.content}`)
-      .join("\n\n");
+    // ─── Phase 3: Update Phase — ADD/UPDATE/DELETE/NOOP via tool calling ───
+    const updatePrompt = `You are a memory management system for an AI agent. Analyze this conversation and manage the user's memory entries.
 
-    const extractionPrompt = `Analyze this conversation and extract key facts about the USER (not the agent). 
-Return a JSON array of memory objects. Each memory should capture something the agent should remember about this specific user for future conversations.
+EXISTING MEMORIES:
+${existingMemoriesList || "None yet"}
 
-Categories:
-- "fact": concrete facts (name, job, location, family)
-- "preference": likes, dislikes, communication style preferences
-- "topic": topics they're interested in or working on
-- "insight": personal insights or breakthroughs they had
-- "personal": emotional state, life situation, challenges
+RECENT CONVERSATION:
+${conversationText}
+
+Your job: Decide what memory operations to perform. You MUST use the manage_memories tool to execute operations.
 
 Rules:
-- Only extract info about the USER, not general knowledge
-- Each memory should be a single, clear sentence
+- ADD: New facts, preferences, insights about the USER (not general knowledge)
+- UPDATE: If existing memory is outdated or needs refinement (reference by index)
+- DELETE: If a memory is contradicted or no longer true (reference by index)
+- NOOP: If nothing meaningful to change
+- Max 5 operations per call
+- Each memory content should be a single clear sentence
 - Score importance 0.0-1.0 (name=1.0, casual mention=0.3)
-- Skip if no meaningful personal info was shared
-- Avoid duplicating these existing memories: ${existingSummary || "none yet"}
-- Return empty array [] if nothing new to remember
-- Maximum 5 memories per conversation
+- Categories: fact, preference, topic, insight, personal`;
 
-Return ONLY valid JSON array, no markdown fences:
-[{"content": "...", "memory_type": "fact|preference|topic|insight|personal", "importance_score": 0.0-1.0}]`;
-
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const toolCallResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -85,63 +143,132 @@ Return ONLY valid JSON array, no markdown fences:
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: extractionPrompt },
-          { role: "user", content: conversationText },
+          { role: "system", content: updatePrompt },
+          { role: "user", content: "Analyze the conversation and manage memories using the tool." },
         ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "manage_memories",
+              description: "Execute memory operations: ADD new memories, UPDATE existing ones, DELETE outdated ones, or NOOP.",
+              parameters: {
+                type: "object",
+                properties: {
+                  operations: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        action: { type: "string", enum: ["ADD", "UPDATE", "DELETE", "NOOP"] },
+                        index: { type: "integer", description: "Index of existing memory (for UPDATE/DELETE)" },
+                        content: { type: "string", description: "Memory content (for ADD/UPDATE)" },
+                        memory_type: { type: "string", enum: ["fact", "preference", "topic", "insight", "personal"] },
+                        importance_score: { type: "number", minimum: 0, maximum: 1 },
+                      },
+                      required: ["action"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["operations"],
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "manage_memories" } },
       }),
     });
 
-    if (!aiResponse.ok) {
-      console.error("AI extraction failed:", aiResponse.status);
-      return new Response(JSON.stringify({ extracted: 0, error: "AI extraction failed" }), {
+    if (!toolCallResponse.ok) {
+      console.error("Memory update tool call failed:", toolCallResponse.status);
+      return new Response(JSON.stringify({ extracted: 0, error: "tool_call_failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const aiData = await aiResponse.json();
-    const raw = aiData.choices?.[0]?.message?.content?.trim() || "[]";
-    
-    // Parse — strip markdown fences if present
-    const cleaned = raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-    let memories: any[] = [];
+    const toolData = await toolCallResponse.json();
+    const toolCall = toolData.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) {
+      return new Response(JSON.stringify({ extracted: 0, reason: "no_tool_call" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let operations: any[] = [];
     try {
-      memories = JSON.parse(cleaned);
+      const args = JSON.parse(toolCall.function.arguments);
+      operations = args.operations || [];
     } catch {
-      console.error("Failed to parse memories JSON:", cleaned);
+      console.error("Failed to parse tool call arguments");
       return new Response(JSON.stringify({ extracted: 0, error: "parse_failed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (!Array.isArray(memories) || memories.length === 0) {
-      return new Response(JSON.stringify({ extracted: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Execute operations
+    let added = 0, updated = 0, deleted = 0;
+    const existingArr = existingMemories || [];
+
+    for (const op of operations.slice(0, 5)) {
+      try {
+        switch (op.action) {
+          case "ADD":
+            if (op.content) {
+              await supabase.from("agent_memories").insert({
+                agent_id: agentId,
+                user_id: userId || null,
+                user_session: userSession || null,
+                memory_type: op.memory_type || "fact",
+                content: op.content,
+                importance_score: Math.min(1, Math.max(0, op.importance_score || 0.5)),
+                source_conversation_id: conversationId,
+              });
+              added++;
+            }
+            break;
+
+          case "UPDATE":
+            if (typeof op.index === "number" && op.index < existingArr.length && op.content) {
+              const target = existingArr[op.index];
+              await supabase
+                .from("agent_memories")
+                .update({
+                  content: op.content,
+                  memory_type: op.memory_type || target.memory_type,
+                  importance_score: op.importance_score ?? target.importance_score,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", target.id);
+              updated++;
+            }
+            break;
+
+          case "DELETE":
+            if (typeof op.index === "number" && op.index < existingArr.length) {
+              const target = existingArr[op.index];
+              await supabase.from("agent_memories").delete().eq("id", target.id);
+              deleted++;
+            }
+            break;
+
+          case "NOOP":
+          default:
+            break;
+        }
+      } catch (e) {
+        console.error(`Memory operation ${op.action} failed:`, e);
+      }
     }
 
-    // Insert memories
-    const rows = memories.slice(0, 5).map((m: any) => ({
-      agent_id: agentId,
-      user_id: userId || null,
-      user_session: userSession || null,
-      memory_type: m.memory_type || "fact",
-      content: m.content,
-      importance_score: Math.min(1, Math.max(0, m.importance_score || 0.5)),
-      source_conversation_id: conversationId,
-    }));
+    console.log(`Memory update: +${added} ~${updated} -${deleted} for agent ${agentId}`);
 
-    const { error } = await supabase.from("agent_memories").insert(rows);
-    if (error) {
-      console.error("Memory insert error:", error);
-      throw error;
-    }
-
-    console.log(`Extracted ${rows.length} memories for agent ${agentId}`);
-
-    return new Response(JSON.stringify({ extracted: rows.length, memories: rows.map(r => r.content) }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ added, updated, deleted, total_ops: operations.length }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (e) {
     console.error("extract-memories error:", e);
     return new Response(
