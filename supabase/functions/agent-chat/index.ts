@@ -181,7 +181,7 @@ serve(async (req) => {
   }
 
   try {
-    const { agentId, messages, conversationId, userSession, userId, customSystemPrompt, model, providerId } = await req.json();
+    const { agentId, messages, conversationId, userSession, userId, customSystemPrompt, model, providerId, activeConnections } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -322,6 +322,7 @@ Example: > 💡 This is an insight callout
     let openaiTools: any[] = [];
     let skillMap: Record<string, any> = {};
     try {
+      // 1. Fetch assigned skills for this agent
       const { data: assignments } = await supabase
         .from("agent_skill_assignments")
         .select("skill_id, config, agent_skills(id, name, description, skill_type, tool_schema, endpoint_url, mcp_connection_id, mcp_tool_name)")
@@ -332,6 +333,10 @@ Example: > 💡 This is an insight callout
         for (const a of assignments) {
           const skill = (a as any).agent_skills;
           if (!skill || !skill.tool_schema) continue;
+          // If this is an MCP skill, only include if its connection is in activeConnections
+          if (skill.skill_type === "mcp" && skill.mcp_connection_id) {
+            if (!activeConnections || !activeConnections.includes(skill.mcp_connection_id)) continue;
+          }
           const toolName = skill.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
           openaiTools.push({
             type: "function",

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2, Cpu, ChevronUp } from "lucide-react";
+import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2, Cpu, ChevronUp, Server, Wifi, WifiOff } from "lucide-react";
 import { agents } from "@/data/agents";
 import { AgentMarkdown } from "@/components/chat/AgentMarkdown";
 import { toast } from "sonner";
@@ -326,7 +326,80 @@ function ModelSwitcher({ selected, onChange }: { selected: ModelOption; onChange
 }
 
 
-// ─── Main Session ─────────────────────────────────────────────────────────────
+// ─── MCP Toggle ──────────────────────────────────────────────────────────────
+interface McpConnection { id: string; name: string; server_url: string; is_active: boolean; }
+
+function McpToggle({ activeIds, onToggle }: { activeIds: string[]; onToggle: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [connections, setConnections] = useState<McpConnection[]>([]);
+
+  useEffect(() => {
+    supabase.from("mcp_connections").select("id, name, server_url, is_active").eq("is_active", true)
+      .then(({ data }) => setConnections(data || []));
+  }, []);
+
+  if (connections.length === 0) return null;
+
+  const activeCount = activeIds.length;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass border transition-colors flex-shrink-0 ${
+          activeCount > 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-gold/15 hover:border-gold/35"
+        }`}
+        title="MCP Connections"
+      >
+        <Server className={`w-3.5 h-3.5 flex-shrink-0 ${activeCount > 0 ? "text-emerald-400" : "text-gold/70"}`} />
+        <span className={`text-xs ${activeCount > 0 ? "text-emerald-400" : "text-cream-dim"}`}>
+          {activeCount > 0 ? `${activeCount} MCP` : "MCP"}
+        </span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 right-0 w-72 glass-strong rounded-xl border border-gold/20 shadow-xl overflow-hidden z-[9999]">
+            <div className="px-3 py-2 border-b border-gold/10 flex items-center justify-between">
+              <span className="font-mono text-gold/60 text-xs uppercase tracking-widest">MCP Connections</span>
+              <span className="text-[10px] text-cream-dim/50">{activeCount} active</span>
+            </div>
+            <div className="py-1">
+              {connections.map(conn => {
+                const isOn = activeIds.includes(conn.id);
+                return (
+                  <button
+                    key={conn.id}
+                    onClick={() => {
+                      onToggle(isOn ? activeIds.filter(id => id !== conn.id) : [...activeIds, conn.id]);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gold/8 transition-colors ${isOn ? "bg-emerald-500/5" : ""}`}
+                  >
+                    {isOn ? <Wifi className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" /> : <WifiOff className="w-3.5 h-3.5 text-cream-dim/30 flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-cream text-xs block truncate">{conn.name}</span>
+                      <span className="text-cream-dim/40 text-[10px] font-mono block truncate">{conn.server_url}</span>
+                    </div>
+                    <div className={`w-8 h-4 rounded-full transition-colors ${isOn ? "bg-emerald-500" : "bg-cream-dim/20"}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-transform ${isOn ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="px-3 py-2 border-t border-gold/10">
+              <Link to="/library" className="text-[10px] text-gold/60 hover:text-gold font-mono">
+                Manage connections in Knowledge →
+              </Link>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
 const Session = () => {
   const { agentId } = useParams<{ agentId: string }>();
   const [searchParams] = useSearchParams();
@@ -349,6 +422,7 @@ const Session = () => {
     id: "google/gemini-2.5-flash",
     label: "Gemini 2.5 Flash (default)",
   });
+  const [activeMcpIds, setActiveMcpIds] = useState<string[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -492,6 +566,7 @@ const Session = () => {
           userId: user?.id || null,
           model: selectedModel.id,
           providerId: selectedModel.providerId || null,
+          activeConnections: activeMcpIds.length > 0 ? activeMcpIds : undefined,
           // Pass custom agent's cognitive layers if available
           customSystemPrompt: customAgent ? buildCustomSystemPrompt(customAgent) : undefined,
         }),
@@ -632,6 +707,9 @@ const Session = () => {
 
         {/* Model Switcher */}
         <ModelSwitcher selected={selectedModel} onChange={setSelectedModel} />
+
+        {/* MCP Toggle */}
+        <McpToggle activeIds={activeMcpIds} onToggle={setActiveMcpIds} />
 
         <button
           onClick={() => setProfileOpen(true)}

@@ -4,13 +4,14 @@ import {
   ArrowLeft, BookOpen, Globe, Upload, CheckCircle, AlertCircle,
   Loader2, ChevronRight, FileText, Sparkles, Search, Youtube,
   Link2, Paperclip, X, Brain, Database, Clock, Trash2,
+  Server, Shield, Key, Wifi, WifiOff, Wrench,
 } from "lucide-react";
 import { agents } from "@/data/agents";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import AgentAvatar from "@/components/AgentAvatar";
 
-type SourceType = "wikipedia" | "text" | "auto" | "youtube" | "url" | "file";
+type SourceType = "wikipedia" | "text" | "auto" | "youtube" | "url" | "file" | "mcp";
 
 interface CustomAgent {
   id: string; slug: string; name: string; domain: string; image_url: string | null; accent_color: string | null;
@@ -63,19 +64,25 @@ const KnowledgeIngestion = () => {
       .maybeSingle().then(({ data }) => { if (data) setCustomAgent(data as CustomAgent); setAgentLoading(false); });
   }, [agentId, staticAgent]);
 
-  // Fetch existing sources
+  // Fetch existing sources + MCP connections
   useEffect(() => {
     if (!agentId) return;
     setSourcesLoading(true);
-    supabase
-      .from("knowledge_sources")
-      .select("id, title, source_type, status, created_at, mental_models, reasoning_patterns")
-      .eq("agent_id", agentId)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setSources((data || []) as KnowledgeSource[]);
-        setSourcesLoading(false);
-      });
+    Promise.all([
+      supabase
+        .from("knowledge_sources")
+        .select("id, title, source_type, status, created_at, mental_models, reasoning_patterns")
+        .eq("agent_id", agentId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("mcp_connections")
+        .select("id, name, server_url, auth_type, is_active")
+        .eq("is_active", true),
+    ]).then(([sourcesRes, mcpRes]) => {
+      setSources((sourcesRes.data || []) as KnowledgeSource[]);
+      setExistingConnections(mcpRes.data || []);
+      setSourcesLoading(false);
+    });
   }, [agentId]);
 
   const agent = staticAgent
@@ -96,6 +103,16 @@ const KnowledgeIngestion = () => {
   const [autoTopic, setAutoTopic] = useState("");
   const [autoSources, setAutoSources] = useState<string[]>(["wikipedia"]);
   const [autoResults, setAutoResults] = useState<any[]>([]);
+
+  // MCP state
+  const [mcpName, setMcpName] = useState("");
+  const [mcpUrl, setMcpUrl] = useState("");
+  const [mcpAuthType, setMcpAuthType] = useState<"none" | "bearer" | "api_key">("none");
+  const [mcpToken, setMcpToken] = useState("");
+  const [mcpHeaderName, setMcpHeaderName] = useState("X-API-Key");
+  const [mcpDiscoveredTools, setMcpDiscoveredTools] = useState<any[]>([]);
+  const [mcpConnecting, setMcpConnecting] = useState(false);
+  const [existingConnections, setExistingConnections] = useState<any[]>([]);
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -210,8 +227,79 @@ const KnowledgeIngestion = () => {
     } catch (e: any) { setStatus("error"); toast.error(e.message || "Auto-research failed"); }
   };
 
+  const handleMcpConnect = async () => {
+    if (!mcpName.trim() || !mcpUrl.trim() || !agentId) return;
+    setMcpConnecting(true);
+    setMcpDiscoveredTools([]);
+    try {
+      // 1. Save MCP connection to DB
+      const authConfig: any = {};
+      if (mcpAuthType === "bearer") authConfig.token = mcpToken;
+      else if (mcpAuthType === "api_key") { authConfig.api_key = mcpToken; authConfig.header_name = mcpHeaderName; }
+
+      const { data: conn, error: connErr } = await supabase
+        .from("mcp_connections")
+        .insert({ name: mcpName, server_url: mcpUrl, auth_type: mcpAuthType, auth_config: authConfig })
+        .select("id")
+        .single();
+      if (connErr) throw new Error("Failed to save MCP connection");
+
+      // 2. Discover tools via mcp-proxy
+      const { data: { session } } = await supabase.auth.getSession();
+      const discoverRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-proxy`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || SUPABASE_KEY}`,
+        },
+        body: JSON.stringify({ connectionId: conn.id, method: "tools/list", params: {} }),
+      });
+      const discoverData = await discoverRes.json();
+      const tools = discoverData.result?.tools || [];
+      setMcpDiscoveredTools(tools);
+
+      // 3. Create agent_skills for each discovered tool + assign to agent
+      for (const tool of tools) {
+        const { data: skill } = await supabase
+          .from("agent_skills")
+          .insert({
+            name: tool.name,
+            description: tool.description || tool.name,
+            skill_type: "mcp",
+            mcp_connection_id: conn.id,
+            mcp_tool_name: tool.name,
+            tool_schema: tool.inputSchema || { type: "object", properties: {} },
+          })
+          .select("id")
+          .single();
+
+        if (skill) {
+          await supabase.from("agent_skill_assignments").insert({
+            agent_id: agentId,
+            skill_id: skill.id,
+            is_active: true,
+          });
+        }
+      }
+
+      // Refresh connections list
+      const { data: refreshedConns } = await supabase
+        .from("mcp_connections").select("id, name, server_url, auth_type, is_active").eq("is_active", true);
+      setExistingConnections(refreshedConns || []);
+
+      setStatus("success");
+      toast.success(`Connected! ${tools.length} tool(s) discovered and assigned.`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to connect MCP server");
+      setStatus("error");
+    } finally {
+      setMcpConnecting(false);
+    }
+  };
+
   const handleSubmit = () => {
     if (activeTab === "auto") handleAutoResearch();
+    else if (activeTab === "mcp") handleMcpConnect();
     else if (activeTab === "wikipedia") handleWikipediaIngest();
     else if (activeTab === "youtube") handleYoutubeIngest();
     else if (activeTab === "url") handleUrlIngest();
@@ -223,6 +311,7 @@ const KnowledgeIngestion = () => {
     setStatus("idle"); setExtractedData(null); setAutoResults([]);
     setWikiUrl(""); setTextTitle(""); setTextContent("");
     setYoutubeUrl(""); setWebUrl(""); setUploadedFiles([]);
+    setMcpName(""); setMcpUrl(""); setMcpToken(""); setMcpDiscoveredTools([]);
   };
 
   const deleteSource = async (id: string) => {
@@ -231,8 +320,9 @@ const KnowledgeIngestion = () => {
     toast.success("Source deleted");
   };
 
-  const isSubmitDisabled = status === "processing" || (
+  const isSubmitDisabled = status === "processing" || mcpConnecting || (
     activeTab === "auto" ? !autoTopic.trim() || autoSources.length === 0 :
+    activeTab === "mcp" ? !mcpName.trim() || !mcpUrl.trim() :
     activeTab === "wikipedia" ? !wikiUrl.trim() :
     activeTab === "youtube" ? !youtubeUrl.trim() :
     activeTab === "url" ? !webUrl.trim() :
@@ -262,6 +352,7 @@ const KnowledgeIngestion = () => {
 
   const TABS = [
     { id: "auto" as SourceType, label: "Auto Research", icon: Sparkles },
+    { id: "mcp" as SourceType, label: "MCP Server", icon: Server },
     { id: "wikipedia" as SourceType, label: "Wikipedia", icon: Globe },
     { id: "youtube" as SourceType, label: "YouTube", icon: Youtube },
     { id: "url" as SourceType, label: "Web URL", icon: Link2 },
@@ -470,6 +561,101 @@ const KnowledgeIngestion = () => {
               </div>
             )}
 
+            {/* MCP SERVER */}
+            {activeTab === "mcp" && (
+              <div className="space-y-5">
+                {/* Existing connections */}
+                {existingConnections.length > 0 && (
+                  <div>
+                    <div className="font-mono text-primary/60 text-xs uppercase tracking-widest mb-2">Active Connections</div>
+                    <div className="space-y-1.5">
+                      {existingConnections.map((conn) => (
+                        <div key={conn.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/20 bg-muted/10">
+                          <Wifi className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-foreground truncate block">{conn.name}</span>
+                            <span className="text-[10px] text-muted-foreground/50 font-mono truncate block">{conn.server_url}</span>
+                          </div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 font-mono">connected</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="font-mono text-primary/60 text-xs uppercase tracking-widest block mb-2">Connection Name</label>
+                  <input type="text" value={mcpName} onChange={e => setMcpName(e.target.value)}
+                    placeholder="e.g. 'Obsidian Vault', 'Notion', 'Linear'"
+                    className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                </div>
+
+                <div>
+                  <label className="font-mono text-primary/60 text-xs uppercase tracking-widest block mb-2">Server URL</label>
+                  <input type="url" value={mcpUrl} onChange={e => setMcpUrl(e.target.value)}
+                    placeholder="http://localhost:27123/mcp or https://mcp.example.com/sse"
+                    className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                  <p className="text-muted-foreground/50 text-xs mt-1">Supports Streamable HTTP and SSE transport</p>
+                </div>
+
+                <div>
+                  <label className="font-mono text-primary/60 text-xs uppercase tracking-widest block mb-2">Authentication</label>
+                  <div className="flex gap-2 mb-3">
+                    {([["none", "None", Shield], ["bearer", "Bearer Token", Key], ["api_key", "API Key", Key]] as const).map(([type, label, Icon]) => (
+                      <button key={type} onClick={() => setMcpAuthType(type)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+                          mcpAuthType === type
+                            ? "bg-primary/15 text-primary border-primary/25"
+                            : "bg-muted/10 text-muted-foreground border-border hover:text-foreground"
+                        }`}>
+                        <Icon className="w-3 h-3" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {mcpAuthType !== "none" && (
+                    <div className="space-y-3">
+                      {mcpAuthType === "api_key" && (
+                        <input type="text" value={mcpHeaderName} onChange={e => setMcpHeaderName(e.target.value)}
+                          placeholder="Header name (e.g. X-API-Key)"
+                          className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                      )}
+                      <input type="password" value={mcpToken} onChange={e => setMcpToken(e.target.value)}
+                        placeholder={mcpAuthType === "bearer" ? "Bearer token" : "API key value"}
+                        className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Discovered tools */}
+                {mcpDiscoveredTools.length > 0 && (
+                  <div>
+                    <div className="font-mono text-primary/60 text-xs uppercase tracking-widest mb-2">
+                      Discovered Tools ({mcpDiscoveredTools.length})
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {mcpDiscoveredTools.map((tool, i) => (
+                        <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-primary/15 bg-primary/5">
+                          <Wrench className="w-3.5 h-3.5 text-primary mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-sm text-foreground font-medium block">{tool.name}</span>
+                            {tool.description && <span className="text-[11px] text-muted-foreground block">{tool.description}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="glass rounded-xl p-4 border border-border/30 text-muted-foreground text-xs space-y-1">
+                  <div className="text-primary/70 font-mono uppercase text-xs tracking-widest mb-2">Supported MCP Servers</div>
+                  <p>• <span className="text-primary/60">Obsidian</span> — Local REST API plugin → MCP bridge</p>
+                  <p>• <span className="text-primary/60">Notion, Linear, GitHub</span> — via hosted MCP servers</p>
+                  <p>• <span className="text-primary/60">Any MCP-compatible server</span> — Streamable HTTP transport</p>
+                </div>
+              </div>
+            )}
+
             {/* WIKIPEDIA */}
             {activeTab === "wikipedia" && (
               <div className="space-y-4">
@@ -575,8 +761,10 @@ const KnowledgeIngestion = () => {
             {status !== "success" && (
               <button onClick={handleSubmit} disabled={isSubmitDisabled}
                 className="mt-5 w-full flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-gold text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                {status === "processing" ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />{activeTab === "auto" ? "Researching sources..." : "Extracting knowledge..."}</>
+                {status === "processing" || mcpConnecting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" />{activeTab === "mcp" ? "Connecting & discovering tools..." : activeTab === "auto" ? "Researching sources..." : "Extracting knowledge..."}</>
+                ) : activeTab === "mcp" ? (
+                  <><Server className="w-4 h-4" />Connect MCP Server</>
                 ) : activeTab === "auto" ? (
                   <><Sparkles className="w-4 h-4" />Auto-Research Topic</>
                 ) : (
