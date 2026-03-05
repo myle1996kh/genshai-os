@@ -1,0 +1,1 @@
+ALTER TABLE public.conversation_summaries ADD CONSTRAINT conversation_summaries_conversation_id_key UNIQUE (conversation_id);
