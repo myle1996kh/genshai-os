@@ -756,7 +756,14 @@ const Session = () => {
                   </button>
                 ))}
               </div>
+              {/* MCP Quick Connect */}
+              <McpQuickConnect onConnect={(prompt) => { setInput(prompt); inputRef.current?.focus(); }} />
             </div>
+          )}
+
+          {/* MCP Quick Connect when no starters */}
+          {userMessages.length === 0 && historyLoaded && agent.conversationStarters.length === 0 && (
+            <McpQuickConnect onConnect={(prompt) => { setInput(prompt); inputRef.current?.focus(); }} />
           )}
 
           {messages.map(msg => (
