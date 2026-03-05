@@ -227,8 +227,79 @@ const KnowledgeIngestion = () => {
     } catch (e: any) { setStatus("error"); toast.error(e.message || "Auto-research failed"); }
   };
 
+  const handleMcpConnect = async () => {
+    if (!mcpName.trim() || !mcpUrl.trim() || !agentId) return;
+    setMcpConnecting(true);
+    setMcpDiscoveredTools([]);
+    try {
+      // 1. Save MCP connection to DB
+      const authConfig: any = {};
+      if (mcpAuthType === "bearer") authConfig.token = mcpToken;
+      else if (mcpAuthType === "api_key") { authConfig.api_key = mcpToken; authConfig.header_name = mcpHeaderName; }
+
+      const { data: conn, error: connErr } = await supabase
+        .from("mcp_connections")
+        .insert({ name: mcpName, server_url: mcpUrl, auth_type: mcpAuthType, auth_config: authConfig })
+        .select("id")
+        .single();
+      if (connErr) throw new Error("Failed to save MCP connection");
+
+      // 2. Discover tools via mcp-proxy
+      const { data: { session } } = await supabase.auth.getSession();
+      const discoverRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-proxy`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || SUPABASE_KEY}`,
+        },
+        body: JSON.stringify({ connectionId: conn.id, method: "tools/list", params: {} }),
+      });
+      const discoverData = await discoverRes.json();
+      const tools = discoverData.result?.tools || [];
+      setMcpDiscoveredTools(tools);
+
+      // 3. Create agent_skills for each discovered tool + assign to agent
+      for (const tool of tools) {
+        const { data: skill } = await supabase
+          .from("agent_skills")
+          .insert({
+            name: tool.name,
+            description: tool.description || tool.name,
+            skill_type: "mcp",
+            mcp_connection_id: conn.id,
+            mcp_tool_name: tool.name,
+            tool_schema: tool.inputSchema || { type: "object", properties: {} },
+          })
+          .select("id")
+          .single();
+
+        if (skill) {
+          await supabase.from("agent_skill_assignments").insert({
+            agent_id: agentId,
+            skill_id: skill.id,
+            is_active: true,
+          });
+        }
+      }
+
+      // Refresh connections list
+      const { data: refreshedConns } = await supabase
+        .from("mcp_connections").select("id, name, server_url, auth_type, is_active").eq("is_active", true);
+      setExistingConnections(refreshedConns || []);
+
+      setStatus("success");
+      toast.success(`Connected! ${tools.length} tool(s) discovered and assigned.`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to connect MCP server");
+      setStatus("error");
+    } finally {
+      setMcpConnecting(false);
+    }
+  };
+
   const handleSubmit = () => {
     if (activeTab === "auto") handleAutoResearch();
+    else if (activeTab === "mcp") handleMcpConnect();
     else if (activeTab === "wikipedia") handleWikipediaIngest();
     else if (activeTab === "youtube") handleYoutubeIngest();
     else if (activeTab === "url") handleUrlIngest();
@@ -240,6 +311,7 @@ const KnowledgeIngestion = () => {
     setStatus("idle"); setExtractedData(null); setAutoResults([]);
     setWikiUrl(""); setTextTitle(""); setTextContent("");
     setYoutubeUrl(""); setWebUrl(""); setUploadedFiles([]);
+    setMcpName(""); setMcpUrl(""); setMcpToken(""); setMcpDiscoveredTools([]);
   };
 
   const deleteSource = async (id: string) => {
