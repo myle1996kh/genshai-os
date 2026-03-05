@@ -635,6 +635,8 @@ const Session = () => {
       }
     } finally {
       setIsStreaming(false);
+      // Refresh MCP connections in case the AI connected/disconnected MCP servers
+      setMcpRefreshKey(k => k + 1);
     }
   }, [input, agentId, isStreaming, conversationId, userSession, user, customAgent]);
 
