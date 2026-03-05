@@ -723,7 +723,7 @@ const Session = () => {
         <ModelSwitcher selected={selectedModel} onChange={setSelectedModel} />
 
         {/* MCP Toggle */}
-        <McpToggle activeIds={activeMcpIds} onToggle={setActiveMcpIds} />
+        <McpToggle activeIds={activeMcpIds} onToggle={setActiveMcpIds} refreshKey={mcpRefreshKey} />
 
         <button
           onClick={() => setProfileOpen(true)}
