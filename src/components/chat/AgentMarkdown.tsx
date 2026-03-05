@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { MermaidBlock } from "./MermaidBlock";
 import { ImageBlock } from "./ImageBlock";
+import { McpEventCard } from "./McpEventCard";
 
 // ─── Chart ────────────────────────────────────────────────────────────────────
 interface ChartData {
@@ -144,10 +145,11 @@ export const AgentMarkdown = memo(({ content }: AgentMarkdownProps) => {
   }, [content]);
 
   // Pre-extract chart, mermaid, image blocks — replace with placeholders
-  const { processedContent, charts, mermaidDiagrams, images } = useMemo(() => {
+  const { processedContent, charts, mermaidDiagrams, images, mcpEvents } = useMemo(() => {
     const chartBlocks: ChartData[] = [];
     const mermaidBlocks: { chart: string; title?: string }[] = [];
     const imageBlocks: { prompt: string; caption?: string }[] = [];
+    const mcpEventBlocks: any[] = [];
 
     let processed = cleanContent
       // chart blocks
@@ -172,24 +174,33 @@ export const AgentMarkdown = memo(({ content }: AgentMarkdownProps) => {
         } catch {
           return `\`\`\`\n${json}\`\`\``;
         }
+      })
+      // mcp-event blocks
+      .replace(/```mcp-event\n([\s\S]*?)```/g, (_, json) => {
+        try {
+          mcpEventBlocks.push(JSON.parse(json.trim()));
+          return `\n<!--mcpevent-${mcpEventBlocks.length - 1}-->\n`;
+        } catch {
+          return "";
+        }
       });
 
-    return { processedContent: processed, charts: chartBlocks, mermaidDiagrams: mermaidBlocks, images: imageBlocks };
+    return { processedContent: processed, charts: chartBlocks, mermaidDiagrams: mermaidBlocks, images: imageBlocks, mcpEvents: mcpEventBlocks };
   }, [cleanContent]);
 
   // Split by placeholders for rendering
   const segments = useMemo(() => {
-    const parts = processedContent.split(/<!--(chart|mermaid|image)-(\d+)-->/);
-    const result: Array<{ type: "chart" | "mermaid" | "image" | "markdown"; index?: number; content?: string }> = [];
+    const parts = processedContent.split(/<!--(chart|mermaid|image|mcpevent)-(\d+)-->/);
+    const result: Array<{ type: "chart" | "mermaid" | "image" | "mcpevent" | "markdown"; index?: number; content?: string }> = [];
 
     for (let i = 0; i < parts.length; i++) {
       if (i % 3 === 0 && parts[i].trim()) {
         result.push({ type: "markdown", content: parts[i] });
       } else if (i % 3 === 1) {
-        const blockType = parts[i] as "chart" | "mermaid" | "image";
+        const blockType = parts[i] as "chart" | "mermaid" | "image" | "mcpevent";
         const index = parseInt(parts[i + 1]);
         result.push({ type: blockType, index });
-        i++; // skip the index part
+        i++;
       }
     }
 
@@ -207,6 +218,9 @@ export const AgentMarkdown = memo(({ content }: AgentMarkdownProps) => {
         }
         if (seg.type === "image" && seg.index !== undefined && images[seg.index]) {
           return <ImageBlock key={`image-${i}`} {...images[seg.index]} />;
+        }
+        if (seg.type === "mcpevent" && seg.index !== undefined && mcpEvents[seg.index]) {
+          return <McpEventCard key={`mcp-${i}`} {...mcpEvents[seg.index]} />;
         }
         if (seg.type === "markdown" && seg.content?.trim()) {
           return <MarkdownSegment key={`md-${i}`} content={seg.content} />;
