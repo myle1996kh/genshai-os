@@ -278,9 +278,10 @@ Use emoji prefixes in blockquotes for styled callouts:
 Example: > 💡 This is an insight callout
 `;
 
-    // ─── Persistent Memory ─────────────────────────────────────────────────
+    // ─── Persistent Memory + Conversation Summary ─────────────────────
     let memoryContext = "";
     try {
+      // Fetch memories
       const memoryQuery = supabase
         .from("agent_memories")
         .select("content, memory_type, importance_score")
@@ -294,13 +295,27 @@ Example: > 💡 This is an insight callout
         memoryQuery.eq("user_session", userSession);
       }
 
-      const { data: memories } = await memoryQuery;
+      const [{ data: memories }, { data: summaryData }] = await Promise.all([
+        memoryQuery,
+        convId ? supabase
+          .from("conversation_summaries")
+          .select("summary")
+          .eq("conversation_id", convId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+
       if (memories && memories.length > 0) {
         const memLines = memories.map((m: any) => `- [${m.memory_type}] ${m.content}`).join("\n");
-        memoryContext = `\n\n## What You Remember About This User\nYou have had previous conversations with this user. Here is what you remember:\n${memLines}\n\nUse these memories naturally — reference them when relevant, build on past conversations, but don't list them all at once. Be natural about it, as if you genuinely remember.`;
+        memoryContext += `\n\n## What You Remember About This User\nYou have had previous conversations with this user. Here is what you remember:\n${memLines}\n\nUse these memories naturally — reference them when relevant, build on past conversations, but don't list them all at once. Be natural about it, as if you genuinely remember.`;
+      }
+
+      if (summaryData?.summary) {
+        memoryContext += `\n\n## Previous Conversation Context\nHere is a summary of your earlier conversation with this user:\n${summaryData.summary}\n\nUse this context to maintain continuity.`;
       }
     } catch (e) {
-      console.warn("Memory fetch failed:", e);
+      console.warn("Memory/summary fetch failed:", e);
     }
 
     const systemPrompt = basePrompt + memoryContext + mermaidRules;
