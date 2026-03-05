@@ -561,6 +561,101 @@ const KnowledgeIngestion = () => {
               </div>
             )}
 
+            {/* MCP SERVER */}
+            {activeTab === "mcp" && (
+              <div className="space-y-5">
+                {/* Existing connections */}
+                {existingConnections.length > 0 && (
+                  <div>
+                    <div className="font-mono text-primary/60 text-xs uppercase tracking-widest mb-2">Active Connections</div>
+                    <div className="space-y-1.5">
+                      {existingConnections.map((conn) => (
+                        <div key={conn.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/20 bg-muted/10">
+                          <Wifi className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-foreground truncate block">{conn.name}</span>
+                            <span className="text-[10px] text-muted-foreground/50 font-mono truncate block">{conn.server_url}</span>
+                          </div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 font-mono">connected</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="font-mono text-primary/60 text-xs uppercase tracking-widest block mb-2">Connection Name</label>
+                  <input type="text" value={mcpName} onChange={e => setMcpName(e.target.value)}
+                    placeholder="e.g. 'Obsidian Vault', 'Notion', 'Linear'"
+                    className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                </div>
+
+                <div>
+                  <label className="font-mono text-primary/60 text-xs uppercase tracking-widest block mb-2">Server URL</label>
+                  <input type="url" value={mcpUrl} onChange={e => setMcpUrl(e.target.value)}
+                    placeholder="http://localhost:27123/mcp or https://mcp.example.com/sse"
+                    className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                  <p className="text-muted-foreground/50 text-xs mt-1">Supports Streamable HTTP and SSE transport</p>
+                </div>
+
+                <div>
+                  <label className="font-mono text-primary/60 text-xs uppercase tracking-widest block mb-2">Authentication</label>
+                  <div className="flex gap-2 mb-3">
+                    {([["none", "None", Shield], ["bearer", "Bearer Token", Key], ["api_key", "API Key", Key]] as const).map(([type, label, Icon]) => (
+                      <button key={type} onClick={() => setMcpAuthType(type)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+                          mcpAuthType === type
+                            ? "bg-primary/15 text-primary border-primary/25"
+                            : "bg-muted/10 text-muted-foreground border-border hover:text-foreground"
+                        }`}>
+                        <Icon className="w-3 h-3" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {mcpAuthType !== "none" && (
+                    <div className="space-y-3">
+                      {mcpAuthType === "api_key" && (
+                        <input type="text" value={mcpHeaderName} onChange={e => setMcpHeaderName(e.target.value)}
+                          placeholder="Header name (e.g. X-API-Key)"
+                          className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                      )}
+                      <input type="password" value={mcpToken} onChange={e => setMcpToken(e.target.value)}
+                        placeholder={mcpAuthType === "bearer" ? "Bearer token" : "API key value"}
+                        className="w-full glass rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 text-sm outline-none focus:border-primary/40 border border-border" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Discovered tools */}
+                {mcpDiscoveredTools.length > 0 && (
+                  <div>
+                    <div className="font-mono text-primary/60 text-xs uppercase tracking-widest mb-2">
+                      Discovered Tools ({mcpDiscoveredTools.length})
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {mcpDiscoveredTools.map((tool, i) => (
+                        <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-primary/15 bg-primary/5">
+                          <Wrench className="w-3.5 h-3.5 text-primary mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-sm text-foreground font-medium block">{tool.name}</span>
+                            {tool.description && <span className="text-[11px] text-muted-foreground block">{tool.description}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="glass rounded-xl p-4 border border-border/30 text-muted-foreground text-xs space-y-1">
+                  <div className="text-primary/70 font-mono uppercase text-xs tracking-widest mb-2">Supported MCP Servers</div>
+                  <p>• <span className="text-primary/60">Obsidian</span> — Local REST API plugin → MCP bridge</p>
+                  <p>• <span className="text-primary/60">Notion, Linear, GitHub</span> — via hosted MCP servers</p>
+                  <p>• <span className="text-primary/60">Any MCP-compatible server</span> — Streamable HTTP transport</p>
+                </div>
+              </div>
+            )}
+
             {/* WIKIPEDIA */}
             {activeTab === "wikipedia" && (
               <div className="space-y-4">
