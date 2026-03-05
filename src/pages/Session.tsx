@@ -708,6 +708,9 @@ const Session = () => {
         {/* Model Switcher */}
         <ModelSwitcher selected={selectedModel} onChange={setSelectedModel} />
 
+        {/* MCP Toggle */}
+        <McpToggle activeIds={activeMcpIds} onToggle={setActiveMcpIds} />
+
         <button
           onClick={() => setProfileOpen(true)}
           className="flex items-center gap-2 ml-2 px-2.5 py-1.5 rounded-xl glass border border-gold/15 hover:border-gold/35 transition-colors flex-shrink-0"
