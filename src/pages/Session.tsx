@@ -333,12 +333,12 @@ interface McpConnection { id: string; name: string; server_url: string; is_activ
 function McpToggle({ activeIds, onToggle, refreshKey }: { activeIds: string[]; onToggle: (ids: string[]) => void; refreshKey?: number }) {
   const [open, setOpen] = useState(false);
   const [connections, setConnections] = useState<McpConnection[]>([]);
+  const [healthStatus, setHealthStatus] = useState<Record<string, "checking" | "healthy" | "error">>({});
 
   const fetchConnections = useCallback(() => {
     supabase.from("mcp_connections").select("id, name, server_url, is_active").eq("is_active", true)
       .then(({ data }) => {
         setConnections(data || []);
-        // Auto-enable newly discovered connections
         if (data && data.length > 0) {
           const newIds = data.map(c => c.id).filter(id => !activeIds.includes(id));
           if (newIds.length > 0 && activeIds.length > 0) {
@@ -350,6 +350,20 @@ function McpToggle({ activeIds, onToggle, refreshKey }: { activeIds: string[]; o
 
   useEffect(() => { fetchConnections(); }, [refreshKey]);
 
+  const checkHealth = async (connId: string) => {
+    setHealthStatus(prev => ({ ...prev, [connId]: "checking" }));
+    try {
+      const { error } = await supabase.functions.invoke("mcp-proxy", {
+        body: { connectionId: connId, method: "tools/list", params: {} },
+      });
+      setHealthStatus(prev => ({ ...prev, [connId]: error ? "error" : "healthy" }));
+    } catch {
+      setHealthStatus(prev => ({ ...prev, [connId]: "error" }));
+    }
+  };
+
+  const checkAllHealth = () => { connections.forEach(c => checkHealth(c.id)); };
+
   if (connections.length === 0) return null;
 
   const activeCount = activeIds.length;
@@ -357,7 +371,7 @@ function McpToggle({ activeIds, onToggle, refreshKey }: { activeIds: string[]; o
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => { setOpen(!open); if (!open) checkAllHealth(); }}
         className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass border transition-colors flex-shrink-0 ${
           activeCount > 0 ? "border-emerald-500/30 bg-emerald-500/5" : "border-gold/15 hover:border-gold/35"
         }`}
@@ -371,25 +385,34 @@ function McpToggle({ activeIds, onToggle, refreshKey }: { activeIds: string[]; o
       {open && (
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 right-0 w-72 glass-strong rounded-xl border border-gold/20 shadow-xl overflow-hidden z-[9999]">
+          <div className="absolute top-full mt-1 right-0 w-80 glass-strong rounded-xl border border-gold/20 shadow-xl overflow-hidden z-[9999]">
             <div className="px-3 py-2 border-b border-gold/10 flex items-center justify-between">
               <span className="font-mono text-gold/60 text-xs uppercase tracking-widest">MCP Connections</span>
-              <span className="text-[10px] text-cream-dim/50">{activeCount} active</span>
+              <div className="flex items-center gap-2">
+                <button onClick={checkAllHealth} className="text-[10px] text-gold/50 hover:text-gold font-mono flex items-center gap-1" title="Health check">
+                  <Activity className="w-3 h-3" /> Check
+                </button>
+                <span className="text-[10px] text-cream-dim/50">{activeCount} active</span>
+              </div>
             </div>
             <div className="py-1">
               {connections.map(conn => {
                 const isOn = activeIds.includes(conn.id);
+                const health = healthStatus[conn.id];
                 return (
                   <button
                     key={conn.id}
-                    onClick={() => {
-                      onToggle(isOn ? activeIds.filter(id => id !== conn.id) : [...activeIds, conn.id]);
-                    }}
+                    onClick={() => onToggle(isOn ? activeIds.filter(id => id !== conn.id) : [...activeIds, conn.id])}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gold/8 transition-colors ${isOn ? "bg-emerald-500/5" : ""}`}
                   >
                     {isOn ? <Wifi className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" /> : <WifiOff className="w-3.5 h-3.5 text-cream-dim/30 flex-shrink-0" />}
                     <div className="flex-1 min-w-0">
-                      <span className="text-cream text-xs block truncate">{conn.name}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-cream text-xs truncate">{conn.name}</span>
+                        {health === "checking" && <Loader2 className="w-3 h-3 text-gold/50 animate-spin flex-shrink-0" />}
+                        {health === "healthy" && <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" title="Healthy" />}
+                        {health === "error" && <div className="w-2 h-2 rounded-full bg-destructive flex-shrink-0" title="Unreachable" />}
+                      </div>
                       <span className="text-cream-dim/40 text-[10px] font-mono block truncate">{conn.server_url}</span>
                     </div>
                     <div className={`w-8 h-4 rounded-full transition-colors ${isOn ? "bg-emerald-500" : "bg-cream-dim/20"}`}>
