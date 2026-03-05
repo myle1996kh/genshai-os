@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { MermaidBlock } from "./MermaidBlock";
 import { ImageBlock } from "./ImageBlock";
+import { McpEventCard } from "./McpEventCard";
 
 // ─── Chart ────────────────────────────────────────────────────────────────────
 interface ChartData {
