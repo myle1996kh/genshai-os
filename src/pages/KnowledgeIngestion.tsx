@@ -352,6 +352,7 @@ const KnowledgeIngestion = () => {
 
   const TABS = [
     { id: "auto" as SourceType, label: "Auto Research", icon: Sparkles },
+    { id: "mcp" as SourceType, label: "MCP Server", icon: Server },
     { id: "wikipedia" as SourceType, label: "Wikipedia", icon: Globe },
     { id: "youtube" as SourceType, label: "YouTube", icon: Youtube },
     { id: "url" as SourceType, label: "Web URL", icon: Link2 },
