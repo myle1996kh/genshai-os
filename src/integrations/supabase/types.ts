@@ -53,6 +53,91 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_skill_assignments: {
+        Row: {
+          agent_id: string
+          config: Json | null
+          created_at: string
+          id: string
+          is_active: boolean
+          skill_id: string
+        }
+        Insert: {
+          agent_id: string
+          config?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          skill_id: string
+        }
+        Update: {
+          agent_id?: string
+          config?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          skill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_skill_assignments_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "agent_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_skills: {
+        Row: {
+          created_at: string
+          description: string | null
+          endpoint_url: string | null
+          id: string
+          is_active: boolean
+          mcp_connection_id: string | null
+          mcp_tool_name: string | null
+          name: string
+          skill_type: string
+          tool_schema: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          endpoint_url?: string | null
+          id?: string
+          is_active?: boolean
+          mcp_connection_id?: string | null
+          mcp_tool_name?: string | null
+          name: string
+          skill_type?: string
+          tool_schema?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          endpoint_url?: string | null
+          id?: string
+          is_active?: boolean
+          mcp_connection_id?: string | null
+          mcp_tool_name?: string | null
+          name?: string
+          skill_type?: string
+          tool_schema?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_skills_mcp_connection_id_fkey"
+            columns: ["mcp_connection_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_provider_models: {
         Row: {
           fetched_at: string
@@ -123,6 +208,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      conversation_summaries: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          last_summarized_at: string
+          message_count: number
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_summarized_at?: string
+          message_count?: number
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_summarized_at?: string
+          message_count?: number
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_summaries_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversations: {
         Row: {
@@ -380,6 +503,42 @@ export type Database = {
           status?: string
           title?: string
           url?: string | null
+        }
+        Relationships: []
+      }
+      mcp_connections: {
+        Row: {
+          auth_config: Json | null
+          auth_type: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          server_url: string
+          updated_at: string
+        }
+        Insert: {
+          auth_config?: Json | null
+          auth_type?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          server_url: string
+          updated_at?: string
+        }
+        Update: {
+          auth_config?: Json | null
+          auth_type?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          server_url?: string
+          updated_at?: string
         }
         Relationships: []
       }
