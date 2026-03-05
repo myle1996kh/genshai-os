@@ -320,8 +320,9 @@ const KnowledgeIngestion = () => {
     toast.success("Source deleted");
   };
 
-  const isSubmitDisabled = status === "processing" || (
+  const isSubmitDisabled = status === "processing" || mcpConnecting || (
     activeTab === "auto" ? !autoTopic.trim() || autoSources.length === 0 :
+    activeTab === "mcp" ? !mcpName.trim() || !mcpUrl.trim() :
     activeTab === "wikipedia" ? !wikiUrl.trim() :
     activeTab === "youtube" ? !youtubeUrl.trim() :
     activeTab === "url" ? !webUrl.trim() :
