@@ -276,6 +276,20 @@ Use emoji prefixes in blockquotes for styled callouts:
 - 📖 for references
 
 Example: > 💡 This is an insight callout
+
+## MCP Server Management
+You have built-in tools to manage MCP (Model Context Protocol) connections. MCP allows you to connect to external services and use their tools.
+
+When a user asks to connect to an external service (e.g. "connect to Obsidian", "add my Notion MCP", "connect to filesystem server"):
+1. Ask for the MCP server URL if not provided
+2. Use __mcp_connect to create the connection (tools are auto-discovered)
+3. Confirm what tools were discovered and are now available
+
+When a user asks what MCP connections are available, use __mcp_list.
+When a user asks to refresh or discover tools from a connection, use __mcp_discover_tools.
+When a user asks to disconnect, use __mcp_disconnect.
+
+After connecting, let the user know the tools are ready to use in the chat. The MCP tools will appear in the MCP toggle in the chat header.
 `;
 
     // ─── Persistent Memory + Conversation Summary ─────────────────────
