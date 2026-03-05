@@ -625,7 +625,10 @@ After connecting, let the user know the tools are ready to use in the chat. The 
             let toolResult = "";
 
             try {
-              if (skill?.skill_type === "mcp" && skill.mcp_connection_id) {
+              // Check if it's a built-in MCP management tool
+              if (fnName.startsWith("__mcp_")) {
+                toolResult = await executeBuiltinMcpTool(fnName, fnArgs);
+              } else if (skill?.skill_type === "mcp" && skill.mcp_connection_id) {
                 // Execute via MCP proxy
                 const mcpRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-proxy`, {
                   method: "POST",
