@@ -190,17 +190,17 @@ export const AgentMarkdown = memo(({ content }: AgentMarkdownProps) => {
 
   // Split by placeholders for rendering
   const segments = useMemo(() => {
-    const parts = processedContent.split(/<!--(chart|mermaid|image)-(\d+)-->/);
-    const result: Array<{ type: "chart" | "mermaid" | "image" | "markdown"; index?: number; content?: string }> = [];
+    const parts = processedContent.split(/<!--(chart|mermaid|image|mcpevent)-(\d+)-->/);
+    const result: Array<{ type: "chart" | "mermaid" | "image" | "mcpevent" | "markdown"; index?: number; content?: string }> = [];
 
     for (let i = 0; i < parts.length; i++) {
       if (i % 3 === 0 && parts[i].trim()) {
         result.push({ type: "markdown", content: parts[i] });
       } else if (i % 3 === 1) {
-        const blockType = parts[i] as "chart" | "mermaid" | "image";
+        const blockType = parts[i] as "chart" | "mermaid" | "image" | "mcpevent";
         const index = parseInt(parts[i + 1]);
         result.push({ type: blockType, index });
-        i++; // skip the index part
+        i++;
       }
     }
 
@@ -218,6 +218,9 @@ export const AgentMarkdown = memo(({ content }: AgentMarkdownProps) => {
         }
         if (seg.type === "image" && seg.index !== undefined && images[seg.index]) {
           return <ImageBlock key={`image-${i}`} {...images[seg.index]} />;
+        }
+        if (seg.type === "mcpevent" && seg.index !== undefined && mcpEvents[seg.index]) {
+          return <McpEventCard key={`mcp-${i}`} {...mcpEvents[seg.index]} />;
         }
         if (seg.type === "markdown" && seg.content?.trim()) {
           return <MarkdownSegment key={`md-${i}`} content={seg.content} />;
