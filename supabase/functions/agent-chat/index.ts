@@ -318,10 +318,40 @@ Example: > 💡 This is an insight callout
       console.warn("Memory/summary fetch failed:", e);
     }
 
+    // ─── Fetch Agent Skills (Tools) ─────────────────────────────────────
+    let openaiTools: any[] = [];
+    let skillMap: Record<string, any> = {};
+    try {
+      const { data: assignments } = await supabase
+        .from("agent_skill_assignments")
+        .select("skill_id, config, agent_skills(id, name, description, skill_type, tool_schema, endpoint_url, mcp_connection_id, mcp_tool_name)")
+        .eq("agent_id", agentId)
+        .eq("is_active", true);
+
+      if (assignments && assignments.length > 0) {
+        for (const a of assignments) {
+          const skill = (a as any).agent_skills;
+          if (!skill || !skill.tool_schema) continue;
+          const toolName = skill.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+          openaiTools.push({
+            type: "function",
+            function: {
+              name: toolName,
+              description: skill.description || skill.name,
+              parameters: skill.tool_schema,
+            },
+          });
+          skillMap[toolName] = { ...skill, assignmentConfig: a.config };
+        }
+      }
+    } catch (e) {
+      console.warn("Skills fetch failed:", e);
+    }
+
     const systemPrompt = basePrompt + memoryContext + mermaidRules;
 
     // Build message history for AI
-    const aiMessages = [
+    const aiMessages: any[] = [
       { role: "system", content: systemPrompt },
       ...(history || []).map((m: any) => ({
         role: m.role === "agent" ? "assistant" : "user",
@@ -347,7 +377,6 @@ Example: > 💡 This is an insight callout
     let resolvedModel = DEFAULT_MODEL;
 
     if (providerId && model) {
-      // External provider — fetch base_url & api_key from DB
       const { data: provider } = await supabase
         .from("ai_providers")
         .select("base_url, api_key, is_active, is_verified")
@@ -355,7 +384,6 @@ Example: > 💡 This is an insight callout
         .single();
 
       if (provider?.is_active && provider?.is_verified) {
-        // Use base_url as-is, don't append /chat/completions
         apiUrl = provider.base_url.replace(/\/+$/, "");
         apiKey = provider.api_key;
         resolvedModel = model;
@@ -369,16 +397,109 @@ Example: > 💡 This is an insight callout
       console.warn(`Invalid model "${model}" without provider, falling back to ${DEFAULT_MODEL}`);
     }
 
-    // Call AI endpoint (with fallback to Lovable AI if external provider fails)
-    let aiResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    // ─── Tool Execution Loop ────────────────────────────────────────────
+    // If tools are available, do a non-streaming call first to check for tool_calls
+    const hasTools = openaiTools.length > 0;
+    let toolMessages: any[] = [];
+
+    if (hasTools) {
+      console.log(`Agent has ${openaiTools.length} tools available: ${Object.keys(skillMap).join(", ")}`);
+
+      // Non-streaming call with tools
+      const toolCheckBody: any = {
         model: resolvedModel,
         messages: aiMessages,
+        tools: openaiTools,
+      };
+
+      let toolResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(toolCheckBody),
+      });
+
+      // Fallback to Lovable AI if external fails
+      if (!toolResponse.ok && apiUrl !== "https://ai.gateway.lovable.dev/v1/chat/completions") {
+        console.warn(`External provider tool call failed (${toolResponse.status}), falling back`);
+        apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+        apiKey = LOVABLE_API_KEY;
+        resolvedModel = DEFAULT_MODEL;
+        toolResponse = await fetch(apiUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...toolCheckBody, model: resolvedModel }),
+        });
+      }
+
+      if (toolResponse.ok) {
+        const toolData = await toolResponse.json();
+        const choice = toolData.choices?.[0];
+
+        if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
+          console.log(`LLM requested ${choice.message.tool_calls.length} tool call(s)`);
+          // Add assistant message with tool_calls
+          toolMessages.push(choice.message);
+
+          // Execute each tool call
+          for (const tc of choice.message.tool_calls) {
+            const fnName = tc.function.name;
+            const fnArgs = JSON.parse(tc.function.arguments || "{}");
+            const skill = skillMap[fnName];
+            let toolResult = "";
+
+            try {
+              if (skill?.skill_type === "mcp" && skill.mcp_connection_id) {
+                // Execute via MCP proxy
+                const mcpRes = await fetch(`${SUPABASE_URL}/functions/v1/mcp-proxy`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  },
+                  body: JSON.stringify({
+                    connectionId: skill.mcp_connection_id,
+                    method: "tools/call",
+                    params: { name: skill.mcp_tool_name || fnName, arguments: fnArgs },
+                  }),
+                });
+                const mcpData = await mcpRes.json();
+                toolResult = JSON.stringify(mcpData.result?.content || mcpData.result || mcpData);
+              } else if (skill?.endpoint_url) {
+                // Execute via HTTP endpoint
+                const httpRes = await fetch(skill.endpoint_url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(fnArgs),
+                });
+                toolResult = await httpRes.text();
+              } else {
+                toolResult = JSON.stringify({ error: `No execution endpoint configured for skill: ${fnName}` });
+              }
+            } catch (err) {
+              console.error(`Tool execution error for ${fnName}:`, err);
+              toolResult = JSON.stringify({ error: `Tool execution failed: ${err instanceof Error ? err.message : "Unknown"}` });
+            }
+
+            console.log(`Tool ${fnName} result: ${toolResult.slice(0, 200)}`);
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: toolResult,
+            });
+          }
+        }
+      }
+    }
+
+    // ─── Final Streaming Call ────────────────────────────────────────────
+    const finalMessages = [...aiMessages, ...toolMessages];
+
+    let aiResponse = await fetch(apiUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: resolvedModel,
+        messages: finalMessages,
         stream: true,
       }),
     });

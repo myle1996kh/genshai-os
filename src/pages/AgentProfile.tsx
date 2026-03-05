@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft, Brain, Cpu, Zap, Globe, BookOpen, MessageSquare,
   Upload, Heart, Target, Lightbulb, Quote, Plus, Loader2,
-  RefreshCw, ImagePlus,
+  RefreshCw, ImagePlus, Wrench,
 } from "lucide-react";
 import { agents } from "@/data/agents";
 import { supabase } from "@/integrations/supabase/client";
@@ -224,6 +224,11 @@ const AgentProfile = () => {
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-gold/25 text-gold text-sm font-medium hover:bg-gold/10 hover:border-gold/50 transition-all duration-200">
                 <Upload className="w-4 h-4" />
                 Add Knowledge Source
+              </Link>
+              <Link to={`/agent-skills/${agent.id}`}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-gold/25 text-gold text-sm font-medium hover:bg-gold/10 hover:border-gold/50 transition-all duration-200">
+                <Wrench className="w-4 h-4" />
+                Skills & MCP
               </Link>
               {canRedesign && (
                 <button
