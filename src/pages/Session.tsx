@@ -817,7 +817,21 @@ const Session = () => {
               }`}>
                 {msg.content ? (
                   msg.role === "agent"
-                    ? <AgentMarkdown content={msg.content} />
+                    ? <>
+                        <AgentMarkdown content={msg.content} />
+                        {/* TTS button */}
+                        <button
+                          onClick={() => {
+                            if (speakingId === msg.id) { stopSpeaking(); setSpeakingId(null); }
+                            else { setSpeakingId(msg.id); speakText(msg.content, () => setSpeakingId(null)); }
+                          }}
+                          className="mt-2 flex items-center gap-1 text-[10px] font-mono text-muted-foreground/50 hover:text-gold transition-colors"
+                          title={speakingId === msg.id ? "Stop speaking" : "Read aloud (free)"}
+                        >
+                          {speakingId === msg.id ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                          {speakingId === msg.id ? "Stop" : "Listen"}
+                        </button>
+                      </>
                     : <p className="text-cream leading-relaxed">{msg.content}</p>
                 ) : (
                   <span className="text-cream-dim/40 animate-pulse">▋</span>
