@@ -888,7 +888,7 @@ const Session = () => {
             </button>
           </div>
           <p className="text-cream-dim/40 text-xs text-center mt-2 font-mono">
-            Enter to send · Shift+Enter for new line · 🎤 Voice input (free) · Memory across sessions
+            Enter to send · Shift+Enter for new line · 🎤 Deepgram Voice · Memory across sessions
           </p>
         </div>
       </div>
