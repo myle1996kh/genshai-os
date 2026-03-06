@@ -613,11 +613,17 @@ After connecting, let the user know the tools are ready and they can toggle them
         tools: openaiTools,
       };
 
-      let toolResponse = await fetch(apiUrl, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(toolCheckBody),
-      });
+      let toolResponse: Response;
+      try {
+        toolResponse = await fetch(apiUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(toolCheckBody),
+        });
+      } catch (fetchErr) {
+        console.warn(`External provider fetch error: ${fetchErr}. Falling back to Lovable AI.`);
+        toolResponse = new Response(null, { status: 0 });
+      }
 
       // Fallback to Lovable AI if external fails
       if (!toolResponse.ok && apiUrl !== "https://ai.gateway.lovable.dev/v1/chat/completions") {
@@ -698,15 +704,21 @@ After connecting, let the user know the tools are ready and they can toggle them
     // ─── Final Streaming Call ────────────────────────────────────────────
     const finalMessages = [...aiMessages, ...toolMessages];
 
-    let aiResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: resolvedModel,
-        messages: finalMessages,
-        stream: true,
-      }),
-    });
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: resolvedModel,
+          messages: finalMessages,
+          stream: true,
+        }),
+      });
+    } catch (fetchErr) {
+      console.warn(`External provider fetch error: ${fetchErr}. Falling back to Lovable AI.`);
+      aiResponse = new Response(null, { status: 0 });
+    }
 
     // If external provider fails with auth/server error, fallback to Lovable AI
     if (!aiResponse.ok && apiUrl !== "https://ai.gateway.lovable.dev/v1/chat/completions") {
