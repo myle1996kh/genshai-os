@@ -60,8 +60,7 @@ serve(async (req) => {
       // Text-to-Speech: receive text, return audio
       const { text, model, voice } = await req.json();
 
-      const ttsModel = model || 'aura-2-en';
-      const ttsVoice = voice || 'thalia';
+      const ttsModel = model || 'aura-asteria-en';
 
       const dgResponse = await fetch(
         `https://api.deepgram.com/v1/speak?model=${ttsModel}&encoding=mp3`,
