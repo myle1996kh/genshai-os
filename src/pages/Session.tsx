@@ -461,6 +461,7 @@ const Session = () => {
   });
   const [activeMcpIds, setActiveMcpIds] = useState<string[]>([]);
   const [mcpRefreshKey, setMcpRefreshKey] = useState(0);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -861,6 +862,11 @@ const Session = () => {
                 className="w-full bg-transparent px-5 py-3.5 text-cream placeholder:text-cream-dim/40 text-sm resize-none outline-none max-h-40 leading-relaxed"
                 style={{ fieldSizing: "content" } as React.CSSProperties}
               />
+              {/* Inline tools row */}
+              <div className="flex items-center gap-1 px-3 pb-2">
+                <InputMcpToggle activeIds={activeMcpIds} onToggle={setActiveMcpIds} refreshKey={mcpRefreshKey} />
+                <VoiceButton onTranscript={(text) => setInput(text)} disabled={isStreaming} />
+              </div>
             </div>
             <button onClick={handleSend} disabled={!input.trim() || isStreaming}
               className="flex-shrink-0 w-11 h-11 rounded-xl gradient-gold flex items-center justify-center text-obsidian hover:opacity-90 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed">
@@ -868,7 +874,7 @@ const Session = () => {
             </button>
           </div>
           <p className="text-cream-dim/40 text-xs text-center mt-2 font-mono">
-            Enter to send · Shift+Enter for new line · Memory across sessions
+            Enter to send · Shift+Enter for new line · 🎤 Voice input (free) · Memory across sessions
           </p>
         </div>
       </div>
