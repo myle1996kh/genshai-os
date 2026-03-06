@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2, Cpu, ChevronUp, Server, Wifi, WifiOff, Activity } from "lucide-react";
+import { ArrowLeft, Send, User, ChevronDown, Brain, LogOut, History, MessageSquare, Loader2, Cpu, ChevronUp, Server, Wifi, WifiOff, Activity, Volume2, VolumeX } from "lucide-react";
 import { agents } from "@/data/agents";
 import { AgentMarkdown } from "@/components/chat/AgentMarkdown";
 import { McpQuickConnect } from "@/components/chat/McpQuickConnect";
+import { VoiceButton, speakText, stopSpeaking } from "@/components/chat/VoiceButton";
+import { InputMcpToggle } from "@/components/chat/InputMcpToggle";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
