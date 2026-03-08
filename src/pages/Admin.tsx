@@ -584,6 +584,13 @@ function AllAgentsTab({ customAgents, onUpdate }: { customAgents: CustomAgentFul
                         {agent.isPublic ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
                         {agent.isPublic ? "Hide" : "Publish"}
                       </button>
+                      <button
+                        onClick={() => deleteAgent(agent as unknown as CustomAgentFull)}
+                        disabled={deletingId === agent.id}
+                        className="flex items-center gap-1 text-[11px] text-destructive hover:underline disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
                     </>
                   )}
                   <button
