@@ -11,8 +11,12 @@ import {
   Users, CreditCard, Shield, BarChart3, Clock, CheckCircle2,
   Edit2, Save, X, Package,
   RefreshCw, Brain, Sparkles, Search,
-  Bot, Globe, Lock, ChevronRight, Zap, Cpu, Image, Settings
+  Bot, Globe, Lock, ChevronRight, Zap, Cpu, Image, Settings,
+  MessageSquare, DollarSign, Trash2
 } from "lucide-react";
+import MemoriesTab from "@/components/admin/MemoriesTab";
+import SessionsTab from "@/components/admin/SessionsTab";
+import BillingControl from "@/components/admin/BillingControl";
 
 interface UserRow {
   user_id: string;
