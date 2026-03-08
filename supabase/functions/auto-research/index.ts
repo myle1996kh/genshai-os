@@ -137,6 +137,126 @@ serve(async (req) => {
       }
     }
 
+    // 3. Web scraping research
+    if (sources.includes("web")) {
+      try {
+        // Use DuckDuckGo HTML for basic web search
+        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(topic)}`;
+        const searchRes = await fetch(searchUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; CognitiveOS/1.0)" },
+        });
+        const searchHtml = await searchRes.text();
+
+        // Extract result URLs from DuckDuckGo HTML
+        const urlMatches = [...searchHtml.matchAll(/class="result__url"[^>]*>([^<]+)</g)];
+        const urls = urlMatches
+          .map(m => m[1].trim())
+          .filter(u => u && !u.includes("duckduckgo"))
+          .slice(0, 3)
+          .map(u => u.startsWith("http") ? u : `https://${u}`);
+
+        for (const url of urls.slice(0, 2)) {
+          try {
+            const pageRes = await fetch(url, {
+              headers: { "User-Agent": "Mozilla/5.0 (compatible; CognitiveOS/1.0)" },
+              signal: AbortSignal.timeout(8000),
+            });
+            const html = await pageRes.text();
+            const text = html
+              .replace(/<script[\s\S]*?<\/script>/gi, "")
+              .replace(/<style[\s\S]*?<\/style>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+              .replace(/&nbsp;/g, " ").replace(/&#\d+;/g, " ")
+              .replace(/\s{2,}/g, " ")
+              .trim()
+              .slice(0, 7000);
+
+            if (text.length < 300) continue;
+
+            const pageTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || url;
+
+            const { data: sourceRecord } = await supabase
+              .from("knowledge_sources")
+              .insert({
+                agent_id: agentId,
+                source_type: "url",
+                title: `[Auto] ${pageTitle.slice(0, 100)}`,
+                url,
+                status: "processing",
+              })
+              .select("id")
+              .single();
+
+            const extracted = await extractKnowledge(text, pageTitle, agentId, LOVABLE_API_KEY);
+
+            if (sourceRecord && extracted) {
+              await supabase.from("knowledge_sources").update({
+                extracted_content: extracted.summary,
+                mental_models: extracted.mentalModels,
+                reasoning_patterns: extracted.reasoningPatterns,
+                status: "completed",
+              }).eq("id", sourceRecord.id);
+
+              results.push({ source: "web", title: pageTitle, url, extracted });
+            }
+          } catch (e) {
+            console.error(`Web scrape error for ${url}:`, e);
+          }
+        }
+      } catch (e) {
+        console.error("Web research error:", e);
+      }
+    }
+
+    // 4. Academic papers (Semantic Scholar)
+    if (sources.includes("academic")) {
+      try {
+        const searchRes = await fetch(
+          `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(topic)}&limit=3&fields=title,abstract,url,authors`,
+          { headers: { "User-Agent": "CognitiveOS/1.0" } }
+        );
+        const searchData = await searchRes.json();
+        const papers = searchData?.data || [];
+
+        for (const paper of papers.slice(0, 2)) {
+          const title = paper.title;
+          const abstract = paper.abstract;
+          if (!abstract || abstract.length < 100) continue;
+
+          const authors = (paper.authors || []).map((a: any) => a.name).join(", ");
+          const content = `Academic Paper: "${title}"\nAuthors: ${authors}\n\nAbstract:\n${abstract}`;
+
+          const { data: sourceRecord } = await supabase
+            .from("knowledge_sources")
+            .insert({
+              agent_id: agentId,
+              source_type: "url",
+              title: `[Auto] ${title.slice(0, 100)}`,
+              url: paper.url || `https://www.semanticscholar.org/paper/${paper.paperId}`,
+              status: "processing",
+            })
+            .select("id")
+            .single();
+
+          const extracted = await extractKnowledge(content, title, agentId, LOVABLE_API_KEY);
+
+          if (sourceRecord && extracted) {
+            await supabase.from("knowledge_sources").update({
+              extracted_content: extracted.summary,
+              mental_models: extracted.mentalModels,
+              reasoning_patterns: extracted.reasoningPatterns,
+              status: "completed",
+            }).eq("id", sourceRecord.id);
+
+            results.push({ source: "academic", title, authors, extracted });
+          }
+        }
+      } catch (e) {
+        console.error("Academic research error:", e);
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: true, sourcesProcessed: results.length, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

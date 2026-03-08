@@ -11,8 +11,12 @@ import {
   Users, CreditCard, Shield, BarChart3, Clock, CheckCircle2,
   Edit2, Save, X, Package,
   RefreshCw, Brain, Sparkles, Search,
-  Bot, Globe, Lock, ChevronRight, Zap, Cpu, Image, Settings
+  Bot, Globe, Lock, ChevronRight, Zap, Cpu, Image, Settings,
+  MessageSquare, DollarSign, Trash2
 } from "lucide-react";
+import MemoriesTab from "@/components/admin/MemoriesTab";
+import SessionsTab from "@/components/admin/SessionsTab";
+import BillingControl from "@/components/admin/BillingControl";
 
 interface UserRow {
   user_id: string;
@@ -252,13 +256,13 @@ function AutoResearchPanel() {
               className="w-full glass rounded-lg px-3 py-2.5 text-sm text-foreground border border-border focus:border-primary/50 outline-none" />
           </div>
         </div>
-        <div className="flex gap-3 mb-4">
-          {["wikipedia", "books"].map(s => (
+        <div className="flex gap-3 mb-4 flex-wrap">
+          {["wikipedia", "books", "web", "academic"].map(s => (
             <label key={s} className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={sources.includes(s)}
                 onChange={e => setSources(prev => e.target.checked ? [...prev, s] : prev.filter(x => x !== s))}
                 className="accent-primary" />
-              <span className="text-sm text-foreground capitalize">{s}</span>
+              <span className="text-sm text-foreground capitalize">{s === "academic" ? "Academic Papers" : s}</span>
             </label>
           ))}
         </div>
@@ -404,6 +408,7 @@ function AllAgentsTab({ customAgents, onUpdate }: { customAgents: CustomAgentFul
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const generateAvatar = async (agent: { id: string; name: string; domain: string; era?: string | null; tagline?: string | null; isCustom: boolean }) => {
     setGeneratingId(agent.id);
@@ -434,6 +439,15 @@ function AllAgentsTab({ customAgents, onUpdate }: { customAgents: CustomAgentFul
     const { error } = await supabase.from("custom_agents").update({ is_public: !agent.is_public }).eq("id", agent.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { toast({ title: "Updated" }); onUpdate(); }
+  };
+
+  const deleteAgent = async (agent: CustomAgentFull) => {
+    if (!confirm(`Delete "${agent.name}"? This cannot be undone.`)) return;
+    setDeletingId(agent.id);
+    const { error } = await supabase.from("custom_agents").delete().eq("id", agent.id);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { toast({ title: "Agent deleted" }); onUpdate(); }
+    setDeletingId(null);
   };
 
   // Merge static + custom agents
@@ -570,6 +584,13 @@ function AllAgentsTab({ customAgents, onUpdate }: { customAgents: CustomAgentFul
                         {agent.isPublic ? <Lock className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
                         {agent.isPublic ? "Hide" : "Publish"}
                       </button>
+                      <button
+                        onClick={() => deleteAgent(agent as unknown as CustomAgentFull)}
+                        disabled={deletingId === agent.id}
+                        className="flex items-center gap-1 text-[11px] text-destructive hover:underline disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
                     </>
                   )}
                   <button
@@ -594,7 +615,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "agents" | "research" | "payments" | "plans" | "theme">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "agents" | "memories" | "sessions" | "research" | "billing" | "plans" | "theme">("overview");
   const [stats, setStats] = useState<Stats | null>(null);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
@@ -652,8 +673,10 @@ export default function Admin() {
     { id: "overview" as const, label: "Overview", icon: BarChart3 },
     { id: "users" as const, label: "Users", icon: Users },
     { id: "agents" as const, label: "Agents", icon: Bot },
+    { id: "memories" as const, label: "Memories", icon: Brain },
+    { id: "sessions" as const, label: "Sessions", icon: MessageSquare },
     { id: "research" as const, label: "Auto-Research", icon: Sparkles },
-    { id: "payments" as const, label: "Payments", icon: CreditCard },
+    { id: "billing" as const, label: "Billing", icon: DollarSign },
     { id: "plans" as const, label: "Plans", icon: Package },
     { id: "theme" as const, label: "Theme", icon: Settings },
   ];
@@ -759,50 +782,20 @@ export default function Admin() {
           {/* RESEARCH */}
           {activeTab === "research" && <AutoResearchPanel />}
 
-          {/* PAYMENTS */}
-          {activeTab === "payments" && (
-            <div className="glass-strong rounded-2xl overflow-hidden">
-              <div className="p-5 border-b border-border/50">
-                <h2 className="font-semibold text-foreground">Payment History</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Last 100 transactions</p>
+          {/* MEMORIES */}
+          {activeTab === "memories" && <MemoriesTab />}
+
+          {/* SESSIONS */}
+          {activeTab === "sessions" && <SessionsTab />}
+
+          {/* BILLING */}
+          {activeTab === "billing" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="font-semibold text-foreground">Billing Control</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Assign plans to users and manage payments</p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      {["User ID", "Amount", "Status", "Method", "Date", "Transaction ID"].map(h => (
-                        <th key={h} className="text-left px-4 py-3 text-xs text-muted-foreground uppercase tracking-wider font-medium">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payments.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No payments found</td></tr>
-                    ) : payments.map(p => (
-                      <tr key={p.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.user_id.slice(0, 12)}…</td>
-                        <td className="px-4 py-3 font-semibold text-foreground">${Number(p.amount).toFixed(2)} <span className="text-muted-foreground font-normal text-xs">{p.currency}</span></td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            p.status === "completed" ? "bg-green-500/15 text-green-400" :
-                            p.status === "pending" ? "bg-yellow-500/15 text-yellow-400" : "bg-destructive/15 text-destructive"
-                          }`}>
-                            {p.status === "completed" ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                            {p.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground capitalize">{p.payment_method || "—"}</td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">
-                          {p.paid_at ? new Date(p.paid_at).toLocaleDateString("vi-VN") : new Date(p.created_at).toLocaleDateString("vi-VN")}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                          {p.paypal_transaction_id ? p.paypal_transaction_id.slice(0, 16) + "…" : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <BillingControl />
             </div>
           )}
 
