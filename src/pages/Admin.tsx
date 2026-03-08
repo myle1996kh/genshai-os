@@ -656,8 +656,10 @@ export default function Admin() {
     { id: "overview" as const, label: "Overview", icon: BarChart3 },
     { id: "users" as const, label: "Users", icon: Users },
     { id: "agents" as const, label: "Agents", icon: Bot },
+    { id: "memories" as const, label: "Memories", icon: Brain },
+    { id: "sessions" as const, label: "Sessions", icon: MessageSquare },
     { id: "research" as const, label: "Auto-Research", icon: Sparkles },
-    { id: "payments" as const, label: "Payments", icon: CreditCard },
+    { id: "billing" as const, label: "Billing", icon: DollarSign },
     { id: "plans" as const, label: "Plans", icon: Package },
     { id: "theme" as const, label: "Theme", icon: Settings },
   ];
