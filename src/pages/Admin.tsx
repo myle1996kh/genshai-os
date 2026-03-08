@@ -441,6 +441,15 @@ function AllAgentsTab({ customAgents, onUpdate }: { customAgents: CustomAgentFul
     else { toast({ title: "Updated" }); onUpdate(); }
   };
 
+  const deleteAgent = async (agent: CustomAgentFull) => {
+    if (!confirm(`Delete "${agent.name}"? This cannot be undone.`)) return;
+    setDeletingId(agent.id);
+    const { error } = await supabase.from("custom_agents").delete().eq("id", agent.id);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { toast({ title: "Agent deleted" }); onUpdate(); }
+    setDeletingId(null);
+  };
+
   // Merge static + custom agents
   const allAgents = [
     ...staticAgents.map(a => ({
