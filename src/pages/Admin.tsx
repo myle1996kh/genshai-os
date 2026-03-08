@@ -256,13 +256,13 @@ function AutoResearchPanel() {
               className="w-full glass rounded-lg px-3 py-2.5 text-sm text-foreground border border-border focus:border-primary/50 outline-none" />
           </div>
         </div>
-        <div className="flex gap-3 mb-4">
-          {["wikipedia", "books"].map(s => (
+        <div className="flex gap-3 mb-4 flex-wrap">
+          {["wikipedia", "books", "web", "academic"].map(s => (
             <label key={s} className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={sources.includes(s)}
                 onChange={e => setSources(prev => e.target.checked ? [...prev, s] : prev.filter(x => x !== s))}
                 className="accent-primary" />
-              <span className="text-sm text-foreground capitalize">{s}</span>
+              <span className="text-sm text-foreground capitalize">{s === "academic" ? "Academic Papers" : s}</span>
             </label>
           ))}
         </div>
