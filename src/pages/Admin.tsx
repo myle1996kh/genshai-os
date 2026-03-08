@@ -598,7 +598,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "agents" | "research" | "payments" | "plans" | "theme">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "agents" | "memories" | "sessions" | "research" | "billing" | "plans" | "theme">("overview");
   const [stats, setStats] = useState<Stats | null>(null);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [plans, setPlans] = useState<PlanRow[]>([]);
