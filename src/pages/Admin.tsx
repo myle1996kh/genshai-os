@@ -408,6 +408,7 @@ function AllAgentsTab({ customAgents, onUpdate }: { customAgents: CustomAgentFul
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const generateAvatar = async (agent: { id: string; name: string; domain: string; era?: string | null; tagline?: string | null; isCustom: boolean }) => {
     setGeneratingId(agent.id);
