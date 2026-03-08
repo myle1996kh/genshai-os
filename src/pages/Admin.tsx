@@ -765,50 +765,20 @@ export default function Admin() {
           {/* RESEARCH */}
           {activeTab === "research" && <AutoResearchPanel />}
 
-          {/* PAYMENTS */}
-          {activeTab === "payments" && (
-            <div className="glass-strong rounded-2xl overflow-hidden">
-              <div className="p-5 border-b border-border/50">
-                <h2 className="font-semibold text-foreground">Payment History</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Last 100 transactions</p>
+          {/* MEMORIES */}
+          {activeTab === "memories" && <MemoriesTab />}
+
+          {/* SESSIONS */}
+          {activeTab === "sessions" && <SessionsTab />}
+
+          {/* BILLING */}
+          {activeTab === "billing" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="font-semibold text-foreground">Billing Control</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Assign plans to users and manage payments</p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      {["User ID", "Amount", "Status", "Method", "Date", "Transaction ID"].map(h => (
-                        <th key={h} className="text-left px-4 py-3 text-xs text-muted-foreground uppercase tracking-wider font-medium">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payments.length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">No payments found</td></tr>
-                    ) : payments.map(p => (
-                      <tr key={p.id} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.user_id.slice(0, 12)}…</td>
-                        <td className="px-4 py-3 font-semibold text-foreground">${Number(p.amount).toFixed(2)} <span className="text-muted-foreground font-normal text-xs">{p.currency}</span></td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            p.status === "completed" ? "bg-green-500/15 text-green-400" :
-                            p.status === "pending" ? "bg-yellow-500/15 text-yellow-400" : "bg-destructive/15 text-destructive"
-                          }`}>
-                            {p.status === "completed" ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                            {p.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground capitalize">{p.payment_method || "—"}</td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">
-                          {p.paid_at ? new Date(p.paid_at).toLocaleDateString("vi-VN") : new Date(p.created_at).toLocaleDateString("vi-VN")}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                          {p.paypal_transaction_id ? p.paypal_transaction_id.slice(0, 16) + "…" : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <BillingControl />
             </div>
           )}
 
