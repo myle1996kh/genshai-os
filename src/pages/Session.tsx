@@ -527,15 +527,20 @@ const Session = () => {
   // Load conversation history
   useEffect(() => {
     if (!agentId || agentLoading) return;
+    setHistoryLoaded(false);
+
     const loadHistory = async () => {
       try {
+        // Reset conversation state for route/query changes to avoid stale IDs
+        setConversationId(linkedConversationId ?? null);
+
         const convParam = linkedConversationId ? `&conversationId=${linkedConversationId}` : '';
         const res = await fetch(
           `${SUPABASE_URL}/functions/v1/get-conversation?agentId=${agentId}&userSession=${userSession}${convParam}`,
           { headers: { Authorization: `Bearer ${SUPABASE_KEY}` } }
         );
         const data = await res.json();
-        if (data.conversationId) setConversationId(data.conversationId);
+        setConversationId(data.conversationId ?? null);
 
         const hasHistory = (data.messages || []).length > 0;
         const agentName = agent?.name || "the agent";
@@ -569,8 +574,9 @@ const Session = () => {
         setHistoryLoaded(true);
       }
     };
+
     loadHistory();
-  }, [agentId, agentLoading]);
+  }, [agentId, agentLoading, linkedConversationId]);
 
   useEffect(() => {
     const starter = searchParams.get("starter");
