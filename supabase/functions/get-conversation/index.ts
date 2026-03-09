@@ -15,6 +15,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     const agentId = url.searchParams.get("agentId");
     const userSession = url.searchParams.get("userSession");
+    const conversationId = url.searchParams.get("conversationId");
 
     if (!agentId || !userSession) {
       return new Response(JSON.stringify({ error: "Missing parameters" }), {
@@ -26,15 +27,28 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Get existing conversation
-    const { data: conv } = await supabase
-      .from("conversations")
-      .select("id")
-      .eq("agent_id", agentId)
-      .eq("user_session", userSession)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+    let conv: { id: string } | null = null;
+
+    if (conversationId) {
+      // Load specific conversation by ID
+      const { data } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("id", conversationId)
+        .single();
+      conv = data;
+    } else {
+      // Get latest conversation for this agent+session
+      const { data } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("agent_id", agentId)
+        .eq("user_session", userSession)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      conv = data;
+    }
 
     if (!conv) {
       return new Response(JSON.stringify({ conversationId: null, messages: [] }), {

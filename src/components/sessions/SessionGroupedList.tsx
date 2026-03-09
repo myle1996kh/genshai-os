@@ -186,7 +186,7 @@ export default function SessionGroupedList({
                         </div>
                       )}
                       <Link
-                        to={`/session/${chat.agent_id}`}
+                        to={`/session/${chat.agent_id}?conversationId=${chat.id}`}
                         className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/15 transition-colors border-t border-border/10 first:border-t-0"
                       >
                         <div className="flex-1 min-w-0">

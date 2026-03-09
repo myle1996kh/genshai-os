@@ -452,7 +452,8 @@ const Session = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+   const linkedConversationId = searchParams.get("conversationId");
+   const [conversationId, setConversationId] = useState<string | null>(linkedConversationId);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelOption>({
@@ -528,8 +529,9 @@ const Session = () => {
     if (!agentId || agentLoading) return;
     const loadHistory = async () => {
       try {
+        const convParam = linkedConversationId ? `&conversationId=${linkedConversationId}` : '';
         const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/get-conversation?agentId=${agentId}&userSession=${userSession}`,
+          `${SUPABASE_URL}/functions/v1/get-conversation?agentId=${agentId}&userSession=${userSession}${convParam}`,
           { headers: { Authorization: `Bearer ${SUPABASE_KEY}` } }
         );
         const data = await res.json();
