@@ -107,6 +107,7 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
 
         return {
           ...conv,
+          title: (conv as any).title || "",
           agentName: staticAgent?.name || customAgent?.name || conv.agent_id,
           agentImage: staticAgent?.image || customAgent?.image_url || undefined,
           preview,
