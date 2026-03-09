@@ -452,7 +452,6 @@ const Session = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-   const [searchParams] = useSearchParams();
    const linkedConversationId = searchParams.get("conversationId");
    const [conversationId, setConversationId] = useState<string | null>(linkedConversationId);
   const [historyLoaded, setHistoryLoaded] = useState(false);
