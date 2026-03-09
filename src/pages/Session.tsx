@@ -79,7 +79,7 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
       // Load recent conversations
       const query = supabase
         .from("conversations")
-        .select("id, agent_id, created_at, updated_at")
+        .select("id, agent_id, created_at, updated_at, title")
         .order("updated_at", { ascending: false })
         .limit(20);
 
