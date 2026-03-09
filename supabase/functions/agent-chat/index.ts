@@ -585,7 +585,11 @@ After connecting, let the user know the tools are ready and they can toggle them
         .single();
 
       if (provider?.is_active && provider?.is_verified) {
-        apiUrl = provider.base_url.replace(/\/+$/, "");
+        const normalizedBase = provider.base_url.replace(/\/+$/, "");
+        // Append /chat/completions if not already present (OpenAI-compatible endpoint)
+        apiUrl = normalizedBase.endsWith("/chat/completions")
+          ? normalizedBase
+          : `${normalizedBase}/chat/completions`;
         apiKey = provider.api_key;
         resolvedModel = model;
         console.log(`Routing to external provider: ${apiUrl}, model: ${model}`);
