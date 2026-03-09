@@ -215,15 +215,15 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
                 <p className="text-cream-dim/50 text-xs">No sessions yet</p>
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {sessions.map(session => (
                   <Link
                     key={session.id}
-                    to={`/session/${session.agent_id}`}
+                    to={`/session/${session.agent_id}?conversationId=${session.id}`}
                     onClick={onClose}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gold/8 border border-transparent hover:border-gold/15 transition-all"
                   >
-                    <div className="w-7 h-7 rounded-lg bg-gold/15 flex items-center justify-center flex-shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-gold/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {session.agentImage ? (
                         <img src={session.agentImage} alt="" className="w-7 h-7 rounded-lg object-cover object-top" />
                       ) : (
@@ -231,12 +231,17 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-cream text-xs font-medium truncate">{session.agentName}</div>
-                      <div className="text-cream-dim/50 text-xs">
-                        {new Date(session.updated_at).toLocaleDateString()}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-cream text-xs font-medium truncate">{session.agentName}</span>
+                        <span className="text-cream-dim/30 text-[10px]">·</span>
+                        <span className="text-cream-dim/40 text-[10px] flex-shrink-0">
+                          {new Date(session.updated_at).toLocaleDateString()}
+                        </span>
                       </div>
+                      <p className="text-cream-dim/50 text-[11px] truncate mt-0.5 leading-snug">
+                        {session.preview || <span className="italic text-cream-dim/25">No messages yet</span>}
+                      </p>
                     </div>
-                    <MessageSquare className="w-3 h-3 text-cream-dim/30 flex-shrink-0" />
                   </Link>
                 ))}
               </div>
