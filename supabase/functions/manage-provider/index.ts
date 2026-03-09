@@ -100,7 +100,7 @@ serve(async (req) => {
       const normalizedUrl = provider.base_url.replace(/\/+$/, "");
       const modelsRes = await fetch(`${normalizedUrl}/models`, {
         headers: { Authorization: `Bearer ${provider.api_key}` },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (!modelsRes.ok) {
