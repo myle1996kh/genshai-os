@@ -73,30 +73,49 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
     if (!open) return;
     setLoading(true);
 
-    // Load recent conversations — by user_id if logged in, else by session
-    const query = supabase
-      .from("conversations")
-      .select("id, agent_id, created_at, updated_at")
-      .order("updated_at", { ascending: false })
-      .limit(20);
+    const loadSessions = async () => {
+      // Load recent conversations
+      const query = supabase
+        .from("conversations")
+        .select("id, agent_id, created_at, updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(20);
 
-    (user
-      ? query.eq("user_id", user.id)
-      : query.eq("user_session", getSessionId())
-    ).then(({ data }) => {
+      const { data } = await (user
+        ? query.eq("user_id", user.id)
+        : query.eq("user_session", getSessionId())
+      );
+
       if (!data) { setLoading(false); return; }
-      const enriched = data.map(conv => {
+
+      // Enrich with agent info + last message snippet
+      const enriched = await Promise.all(data.map(async (conv) => {
         const staticAgent = agents.find(a => a.id === conv.agent_id);
         const customAgent = customAgents.find(a => a.slug === conv.agent_id || a.id === conv.agent_id);
+
+        // Fetch last message as preview/title
+        const { data: lastMsg } = await supabase
+          .from("messages")
+          .select("content, role")
+          .eq("conversation_id", conv.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        const preview = lastMsg?.[0]?.content?.slice(0, 80) || "";
+
         return {
           ...conv,
           agentName: staticAgent?.name || customAgent?.name || conv.agent_id,
           agentImage: staticAgent?.image || customAgent?.image_url || undefined,
+          preview,
         };
-      });
+      }));
+
       setSessions(enriched as SessionHistory[]);
       setLoading(false);
-    });
+    };
+
+    loadSessions();
   }, [open, user]);
 
   const allAgents = [
