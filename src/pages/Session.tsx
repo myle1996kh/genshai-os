@@ -530,8 +530,9 @@ const Session = () => {
     if (!agentId || agentLoading) return;
     const loadHistory = async () => {
       try {
+        const convParam = linkedConversationId ? `&conversationId=${linkedConversationId}` : '';
         const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/get-conversation?agentId=${agentId}&userSession=${userSession}`,
+          `${SUPABASE_URL}/functions/v1/get-conversation?agentId=${agentId}&userSession=${userSession}${convParam}`,
           { headers: { Authorization: `Bearer ${SUPABASE_KEY}` } }
         );
         const data = await res.json();
