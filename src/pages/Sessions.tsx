@@ -79,6 +79,7 @@ const Sessions = () => {
             return {
               ...c,
               is_favorite: (c as any).is_favorite ?? false,
+              title: (c as any).title || "",
               messageCount: count || 0,
               lastMessage: lastMsg?.[0]?.content?.slice(0, 120) || "",
             };
