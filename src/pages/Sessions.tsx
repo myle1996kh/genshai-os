@@ -17,6 +17,7 @@ interface ChatSession {
   created_at: string;
   updated_at: string;
   is_favorite: boolean;
+  title?: string;
   messageCount?: number;
   lastMessage?: string;
 }
