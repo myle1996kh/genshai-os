@@ -57,7 +57,7 @@ const Sessions = () => {
     const fetchChats = async () => {
       const { data: convos } = await supabase
         .from("conversations")
-        .select("id, agent_id, created_at, updated_at, is_favorite")
+        .select("id, agent_id, created_at, updated_at, is_favorite, title")
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
 
