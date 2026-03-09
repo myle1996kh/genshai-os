@@ -253,6 +253,7 @@ export type Database = {
           created_at: string
           id: string
           is_favorite: boolean
+          title: string | null
           updated_at: string
           user_id: string | null
           user_session: string
@@ -262,6 +263,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_favorite?: boolean
+          title?: string | null
           updated_at?: string
           user_id?: string | null
           user_session: string
@@ -271,6 +273,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_favorite?: boolean
+          title?: string | null
           updated_at?: string
           user_id?: string | null
           user_session?: string
