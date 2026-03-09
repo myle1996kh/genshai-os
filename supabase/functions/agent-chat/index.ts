@@ -193,14 +193,20 @@ serve(async (req) => {
 
     // Get or create conversation
     let convId = conversationId;
+    let isNewConversation = false;
     if (!convId) {
+      // Use first user message (truncated) as conversation title
+      const firstMsg = messages.find((m: any) => m.role === "user")?.content || "";
+      const title = firstMsg.slice(0, 100).replace(/\n/g, " ").trim() || null;
+
       const { data: conv, error } = await supabase
         .from("conversations")
-        .insert({ agent_id: agentId, user_session: userSession, user_id: userId || null })
+        .insert({ agent_id: agentId, user_session: userSession, user_id: userId || null, title })
         .select("id")
         .single();
       if (error) throw error;
       convId = conv.id;
+      isNewConversation = true;
     }
 
     // Fetch existing conversation history for memory

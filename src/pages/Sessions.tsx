@@ -17,6 +17,7 @@ interface ChatSession {
   created_at: string;
   updated_at: string;
   is_favorite: boolean;
+  title?: string;
   messageCount?: number;
   lastMessage?: string;
 }
@@ -56,7 +57,7 @@ const Sessions = () => {
     const fetchChats = async () => {
       const { data: convos } = await supabase
         .from("conversations")
-        .select("id, agent_id, created_at, updated_at, is_favorite")
+        .select("id, agent_id, created_at, updated_at, is_favorite, title")
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
 
@@ -78,6 +79,7 @@ const Sessions = () => {
             return {
               ...c,
               is_favorite: (c as any).is_favorite ?? false,
+              title: (c as any).title || "",
               messageCount: count || 0,
               lastMessage: lastMsg?.[0]?.content?.slice(0, 120) || "",
             };

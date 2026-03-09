@@ -12,6 +12,7 @@ interface ChatSession {
   created_at: string;
   updated_at: string;
   is_favorite: boolean;
+  title?: string;
   messageCount?: number;
   lastMessage?: string;
 }
@@ -190,9 +191,14 @@ export default function SessionGroupedList({
                         className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/15 transition-colors border-t border-border/10 first:border-t-0"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-muted-foreground/60 line-clamp-1 leading-relaxed">
-                            {chat.lastMessage || <span className="italic text-muted-foreground/30">No messages yet</span>}
+                          <p className="text-xs text-foreground/80 font-medium truncate leading-relaxed">
+                            {chat.title || chat.lastMessage || <span className="italic text-muted-foreground/30">No messages yet</span>}
                           </p>
+                          {chat.title && chat.lastMessage && (
+                            <p className="text-[11px] text-muted-foreground/50 line-clamp-1 leading-relaxed mt-0.5">
+                              {chat.lastMessage}
+                            </p>
+                          )}
                           {searchInMessages && messageSearchResults[chat.id] && (
                             <p className="text-[11px] text-primary/60 truncate mt-0.5">
                               💬 ...{messageSearchResults[chat.id][0]}...

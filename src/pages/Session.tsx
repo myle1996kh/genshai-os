@@ -22,6 +22,7 @@ interface SessionHistory {
   agent_id: string;
   created_at: string;
   updated_at: string;
+  title?: string;
   agentName?: string;
   agentImage?: string;
   preview?: string;
@@ -78,7 +79,7 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
       // Load recent conversations
       const query = supabase
         .from("conversations")
-        .select("id, agent_id, created_at, updated_at")
+        .select("id, agent_id, created_at, updated_at, title")
         .order("updated_at", { ascending: false })
         .limit(20);
 
@@ -106,6 +107,7 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
 
         return {
           ...conv,
+          title: (conv as any).title || "",
           agentName: staticAgent?.name || customAgent?.name || conv.agent_id,
           agentImage: staticAgent?.image || customAgent?.image_url || undefined,
           preview,
@@ -239,7 +241,7 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
                         </span>
                       </div>
                       <p className="text-cream-dim/50 text-[11px] truncate mt-0.5 leading-snug">
-                        {session.preview || <span className="italic text-cream-dim/25">No messages yet</span>}
+                        {session.title || session.preview || <span className="italic text-cream-dim/25">No messages yet</span>}
                       </p>
                     </div>
                   </Link>
