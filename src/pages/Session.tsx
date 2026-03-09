@@ -24,6 +24,7 @@ interface SessionHistory {
   updated_at: string;
   agentName?: string;
   agentImage?: string;
+  preview?: string;
 }
 
 interface CustomAgent {
