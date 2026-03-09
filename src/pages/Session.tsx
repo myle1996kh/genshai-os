@@ -719,8 +719,8 @@ const Session = () => {
         customAgents={customAgents}
       />
 
-      {/* Session header */}
-      <div className="glass-strong border-b border-gold/10 px-6 py-4 flex items-center gap-4 relative z-[9990]">
+      {/* Session header — sticky */}
+      <div className="sticky top-0 z-[9990] glass-strong border-b border-gold/10 px-6 py-4 flex items-center gap-4">
         <Link to={`/agent/${agent.id}`}
           className="flex items-center gap-1.5 text-cream-dim hover:text-cream transition-colors text-sm">
           <ArrowLeft className="w-4 h-4" />
