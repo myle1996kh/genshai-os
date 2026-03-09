@@ -241,7 +241,7 @@ function ProfileSidebar({ open, onClose, currentAgentId, customAgents }: {
                         </span>
                       </div>
                       <p className="text-cream-dim/50 text-[11px] truncate mt-0.5 leading-snug">
-                        {session.preview || <span className="italic text-cream-dim/25">No messages yet</span>}
+                        {session.title || session.preview || <span className="italic text-cream-dim/25">No messages yet</span>}
                       </p>
                     </div>
                   </Link>
