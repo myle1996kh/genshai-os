@@ -22,6 +22,7 @@ interface SessionHistory {
   agent_id: string;
   created_at: string;
   updated_at: string;
+  title?: string;
   agentName?: string;
   agentImage?: string;
   preview?: string;
